@@ -23,6 +23,7 @@ sealed class AuthState {
     object Loading : AuthState()
     data class LockedOut(val remainingTimeMs: Long) : AuthState()
     data class Error(val message: String) : AuthState()
+    object SuccessAnimation : AuthState()
     data class Success(val tokenJwt: String, val email: String, val roleId: Int) : AuthState()
 }
 
@@ -37,11 +38,14 @@ class AuthViewModel(
 
     var email by mutableStateOf("")
     var pin by mutableStateOf("")
+    var rememberMe by mutableStateOf(false)
     
     // Captcha State (CARSIL-POL-ACC)
     var currentCaptchaCode by mutableStateOf("")
     var userCaptchaInput by mutableStateOf("")
     var isCaptchaVerified by mutableStateOf(false)
+    var isCaptchaModalVisible by mutableStateOf(false)
+    var captchaAttemptsInModal by mutableStateOf(0)
 
     fun onEmailChange(newValue: String) { email = newValue.trim().lowercase(Locale.ROOT) }
     fun onPinChange(newValue: String) { pin = newValue }
@@ -55,19 +59,24 @@ class AuthViewModel(
         isCaptchaVerified = false
     }
 
-    fun verifyCaptchaBeforeLogin(): Boolean {
-        val isValid = userCaptchaInput.trim().uppercase() == currentCaptchaCode.trim().uppercase()
-        isCaptchaVerified = isValid
-
-        if (!isValid) {
-            _authState.value = AuthState.Error("Verificacion anti-bot invalida. Pulsa 'No soy un robot' correctamente.")
-        }
-
-        return isValid
+    fun dismissCaptchaModal() {
+        isCaptchaModalVisible = false
+        userCaptchaInput = ""
+        captchaAttemptsInModal = 0
     }
 
-    // Variable to track human vs bot (timestamp logic)
-    private var lastAttemptTime: Long = 0
+    fun logout() {
+        _authState.value = AuthState.Idle
+        clearInputs()
+    }
+
+    private fun clearInputs() {
+        email = ""
+        pin = ""
+        userCaptchaInput = ""
+        captchaAttemptsInModal = 0
+        isCaptchaVerified = false
+    }
 
     fun checkInitialLockout(userId: String) {
         viewModelScope.launch {
@@ -78,8 +87,8 @@ class AuthViewModel(
         }
     }
 
-    fun attemptLogin(email: String, pin: String) {
-        val currentTime = System.currentTimeMillis()
+    // Paso 1: Validar credenciales
+    fun preVerifyLogin() {
         val normalizedEmail = email.trim().lowercase(Locale.ROOT)
         val trimmedPin = pin.trim()
 
@@ -87,22 +96,6 @@ class AuthViewModel(
             _authState.value = AuthState.Error("Completa correo y contraseña para continuar.")
             return
         }
-
-        if (!isCaptchaVerified) {
-            _authState.value = AuthState.Error("Primero debes pulsar 'No soy un robot' antes de iniciar sesion.")
-            registerAuditLog(normalizedEmail, "LOGIN_BLOCKED_CAPTCHA_NOT_VERIFIED", "AUTH_MODULE")
-            return
-        }
-
-        // Obliga la verificacion captcha por cada intento de login.
-        isCaptchaVerified = false
-        
-        if (currentTime - lastAttemptTime < 500) {
-            _authState.value = AuthState.Error("Actividad inusual detectada. Intento bloqueado por seguridad.")
-            registerAuditLog(normalizedEmail, "LOGIN_BLOCKED_BOT", "AUTH_MODULE")
-            return
-        }
-        lastAttemptTime = currentTime
 
         viewModelScope.launch {
             _authState.value = AuthState.Loading
@@ -113,33 +106,75 @@ class AuthViewModel(
             }
 
             try {
-                // Captcha Validation (CARSIL-POL-ACC)
-                if (userCaptchaInput.trim().uppercase() != currentCaptchaCode.trim().uppercase()) {
-                    _authState.value = AuthState.Error("Código de verificación incorrecto.")
-                    registerAuditLog(normalizedEmail, "LOGIN_FAILED_CAPTCHA", "AUTH_MODULE")
-                    return@launch
-                }
-
-                // Local Intranet Validation (Standard)
                 val usuario = intranetDao.getUserByEmail(normalizedEmail)
                 
                 if (usuario != null && BCrypt.checkpw(trimmedPin, usuario.Clave)) {
-                    validateLockoutUseCase.onSuccessfulLogin(normalizedEmail)
-                    val jwtToken = JwtTokenManager.generateToken(usuario.Correo.lowercase(Locale.ROOT), usuario.IdRol, usuario.IdUsuario)
-                    _authState.value = AuthState.Success(tokenJwt = jwtToken, email = usuario.Correo.lowercase(Locale.ROOT), roleId = usuario.IdRol)
-                    registerAuditLog(normalizedEmail, "LOGIN_SUCCESS_JWT_ISSUED", "AUTH_MODULE")
+                    // Credenciales correctas -> Mostrar Captcha
+                    _authState.value = AuthState.Idle
+                    isCaptchaModalVisible = true
+                    captchaAttemptsInModal = 0
                 } else {
                     val isLocked = validateLockoutUseCase.recordFailedLogin(normalizedEmail)
-                    registerAuditLog(normalizedEmail, "LOGIN_FAILED", "AUTH_MODULE")
-                    
                     if (isLocked) {
                         startLockoutTimer(normalizedEmail)
                     } else {
                         _authState.value = AuthState.Error("Credenciales incorrectas. Verifica correo y contraseña.")
+                        // Seguridad: Borrar campos si falla
+                        pin = "" 
                     }
+                    registerAuditLog(normalizedEmail, "LOGIN_PRE_VERIFY_FAILED", "AUTH_MODULE")
                 }
             } catch (e: Exception) {
-                _authState.value = AuthState.Error("Error validando datos: ${e.localizedMessage}")
+                _authState.value = AuthState.Error("Error: ${e.localizedMessage}")
+            }
+        }
+    }
+
+    // Paso 2: Validar Captcha y Finalizar Login
+    fun finalizeLoginWithCaptcha() {
+        val normalizedEmail = email.trim().lowercase(Locale.ROOT)
+        
+        if (userCaptchaInput.trim().uppercase() == currentCaptchaCode.trim().uppercase()) {
+            // Captcha Correcto -> Login Final
+            viewModelScope.launch {
+                _authState.value = AuthState.Loading
+                try {
+                    val usuario = intranetDao.getUserByEmail(normalizedEmail)
+                    if (usuario != null) {
+                        validateLockoutUseCase.onSuccessfulLogin(normalizedEmail)
+                        val jwtToken = JwtTokenManager.generateToken(usuario.Correo, usuario.IdRol, usuario.IdUsuario)
+                        
+                        isCaptchaModalVisible = false
+                        // PASO 3: Mostrar Animacion de Exito
+                        _authState.value = AuthState.SuccessAnimation
+                        registerAuditLog(normalizedEmail, "LOGIN_SUCCESS_CAPTCHA_VERIFIED", "AUTH_MODULE")
+                        
+                        // Seguridad: Borrar inputs inmediatamente para que no queden en memoria
+                        val finalEmail = usuario.Correo
+                        val finalRole = usuario.IdRol
+                        clearInputs()
+
+                        delay(4000) // Duración de la animación (4 segundos)
+                        
+                        // PASO FINAL: Navegar al Dashboard
+                        _authState.value = AuthState.Success(tokenJwt = jwtToken, email = finalEmail, roleId = finalRole)
+                    }
+                } catch (e: Exception) {
+                    _authState.value = AuthState.Error("Error fatal: ${e.localizedMessage}")
+                }
+            }
+        } else {
+            // Captcha Incorrecto
+            captchaAttemptsInModal++
+            if (captchaAttemptsInModal >= 5) {
+                isCaptchaModalVisible = false
+                _authState.value = AuthState.Error("Demasiados intentos de captcha. Proceso reiniciado.")
+                clearInputs() // Seguridad: Borrar todo si exceden intentos
+                registerAuditLog(normalizedEmail, "CAPTCHA_ATTEMPTS_EXCEEDED", "AUTH_MODULE")
+            } else {
+                userCaptchaInput = ""
+                _authState.value = AuthState.Error("Código incorrecto. Intento $captchaAttemptsInModal de 5.")
+                // Generar nuevo captcha automáticamente? O dejar que use el botón de refrescar
             }
         }
     }

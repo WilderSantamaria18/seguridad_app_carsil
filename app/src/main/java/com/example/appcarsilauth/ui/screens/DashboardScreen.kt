@@ -1,8 +1,13 @@
 package com.example.appcarsilauth.ui.screens
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.List
@@ -19,6 +24,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.appcarsilauth.ui.components.CarsilColors
+import com.example.appcarsilauth.ui.components.CarsilShapes
 import java.math.BigDecimal
 
 @Composable
@@ -30,157 +37,126 @@ fun DashboardScreen(
     onGoToProducts: () -> Unit = {},
     onGoToProforma: () -> Unit = {},
     onLogout: () -> Unit = {},
-    verifiedTotalIncome: BigDecimal = BigDecimal("23824.20")
+    verifiedTotalIncome: java.math.BigDecimal = java.math.BigDecimal("23824.20")
 ) {
     val canUseClients = if (allowedMenus.isEmpty()) roleId != 2 else allowedMenus.contains("Clientes")
     val canUseProducts = if (allowedMenus.isEmpty()) roleId != 2 else allowedMenus.contains("Productos")
     val canUseProformas = if (allowedMenus.isEmpty()) roleId != 2 else allowedMenus.contains("Proformas")
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    colors = listOf(Color(0xFFece9e6), Color(0xFFffffff))
-                )
-            )
-    ) {
+
+    Scaffold(
+        containerColor = CarsilColors.Background
+    ) { padding ->
         Column(
-            modifier = Modifier.padding(24.dp)
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(horizontal = 24.dp)
+                .verticalScroll(androidx.compose.foundation.rememberScrollState())
         ) {
+            Spacer(modifier = Modifier.height(48.dp))
+
             Text(
                 text = "Dashboard",
                 fontSize = 32.sp,
-                fontWeight = FontWeight.ExtraBold,
-                color = Color(0xFF2C5364),
-                modifier = Modifier.padding(top = 32.dp, bottom = 8.dp)
+                fontWeight = FontWeight.Bold,
+                color = CarsilColors.TextPrimary
+            )
+            
+            Text(
+                text = "Sesión activa: $email",
+                fontSize = 14.sp,
+                color = CarsilColors.TextSecondary,
+                modifier = Modifier.padding(top = 4.dp)
             )
 
-            // RBAC Verification - Only show financial metrics to Management/Administrators
-            if (roleId == 1 || roleId == 3) { // 1: Administrador, 3: Supervisor
-                FinancialCard(verifiedTotalIncome)
-            } else {
-                Text(
-                    text = "No tienes los permisos necesarios para ver las métricas financieras (CARSIL-POL-LEY).",
-                    color = Color.Gray,
-                    fontSize = 14.sp
-                )
+            Spacer(modifier = Modifier.height(32.dp))
+
+            // Financial Metrics (Administrador / Supervisor)
+            if (roleId == 1 || roleId == 3) {
+                FinancialCardMinimal(verifiedTotalIncome)
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(32.dp))
+
             Text(
-                text = "Tus Módulos",
+                text = "Operaciones",
                 fontSize = 20.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = Color.White
+                fontWeight = FontWeight.Bold,
+                color = CarsilColors.TextPrimary
             )
+
             Spacer(modifier = Modifier.height(16.dp))
-            
-            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+
+            // Module Navigation Blocks
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 if (canUseClients) {
-                    ModuleCard("Clientes", Icons.Default.Person, Color(0xFF60A5FA))
+                    OperationButton("Gestión de Clientes", Icons.Default.Person, onGoToClients)
                 }
                 if (canUseProducts) {
-                    ModuleCard("Productos", Icons.Default.Build, Color(0xFF34D399))
+                    OperationButton("Inventario de Productos", Icons.Default.Build, onGoToProducts)
                 }
                 if (canUseProformas) {
-                    ModuleCard("Proformas", Icons.Default.List, Color(0xFF4FC3F7))
+                    OperationButton("Proformas y Ventas", Icons.Default.List, onGoToProforma)
+                }
+                
+                if (!canUseClients && !canUseProducts && !canUseProformas) {
+                    Text(
+                        "No tienes módulos operativos asignados.",
+                        color = CarsilColors.TextSecondary,
+                        fontSize = 14.sp
+                    )
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
-            Text(
-                text = "Sesión activa de: $email",
-                color = Color.White.copy(alpha = 0.8f),
-                fontSize = 14.sp
-            )
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(48.dp))
 
-            // Botones de modulos segun permisos en tabla PERMISO
-            if (canUseClients || canUseProducts || canUseProformas) {
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (canUseClients) {
-                        Button(
-                            onClick = onGoToClients,
-                            modifier = Modifier.weight(1f).height(60.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF60A5FA))
-                        ) {
-                            Text("CLIENTES", fontWeight = FontWeight.Bold, color = Color.White)
-                        }
-                    }
-
-                    if (canUseProducts) {
-                        Button(
-                            onClick = onGoToProducts,
-                            modifier = Modifier.weight(1f).height(60.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981))
-                        ) {
-                            Text("PRODUCTOS", fontWeight = FontWeight.Bold, color = Color.White)
-                        }
-                    }
-
-                    if (canUseProformas) {
-                        Button(
-                            onClick = onGoToProforma,
-                            modifier = Modifier.weight(1f).height(60.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4FC3F7))
-                        ) {
-                            Text("PROFORMAS", fontWeight = FontWeight.Bold, color = Color.Black)
-                        }
-                    }
-                }
-            } else {
-                Text(
-                    text = "No tienes modulos operativos habilitados para esta sesion.",
-                    color = Color.Gray,
-                    fontSize = 14.sp
-                )
-            }
-            
-            Spacer(modifier = Modifier.height(16.dp))
-            
-            // Logout Button
-            OutlinedButton(
+            // Logout Pill Button
+            Button(
                 onClick = onLogout,
-                modifier = Modifier.fillMaxWidth().height(50.dp),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp),
+                shape = CarsilShapes.Full,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color.White,
+                    contentColor = Color.Black
+                ),
+                border = BorderStroke(1.dp, CarsilColors.Stroke)
             ) {
-                Text("CERRAR SESIÓN", fontWeight = FontWeight.Bold)
+                Text("Cerrar Sesión", fontWeight = FontWeight.Bold)
             }
+
+            Spacer(modifier = Modifier.height(32.dp))
         }
     }
 }
 
 @Composable
-fun FinancialCard(total: BigDecimal) {
+fun FinancialCardMinimal(total: java.math.BigDecimal) {
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 16.dp)
-            .shadow(12.dp, RoundedCornerShape(16.dp))
-            .clip(RoundedCornerShape(16.dp)),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFFFFFFFF).copy(alpha = 0.1f))
+        modifier = Modifier.fillMaxWidth(),
+        shape = CarsilShapes.Medium,
+        colors = CardDefaults.cardColors(containerColor = Color.Black)
     ) {
-        Column(
-            modifier = Modifier.padding(24.dp)
-        ) {
+        Column(modifier = Modifier.padding(24.dp)) {
             Text(
-                text = "INGRESOS VERIFICADOS (S/)",
-                color = Color.White.copy(alpha = 0.7f),
+                "INGRESOS TOTALES",
+                color = Color.White.copy(alpha = 0.6f),
                 fontSize = 12.sp,
-                fontWeight = FontWeight.SemiBold,
+                fontWeight = FontWeight.Bold,
                 letterSpacing = 1.sp
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "S/ ${total.toPlainString()}",
+                "S/ ${total.toPlainString()}",
                 color = Color.White,
-                fontSize = 36.sp,
-                fontWeight = FontWeight.ExtraBold
+                fontSize = 32.sp,
+                fontWeight = FontWeight.Bold
             )
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "Solo considerando ventas en estado 'COMPLETADA' con precisión BigDecimal.",
-                color = Color(0xFF69F0AE),
+                "Calculado según ventas verificadas",
+                color = Color.Green.copy(alpha = 0.7f),
                 fontSize = 12.sp
             )
         }
@@ -188,21 +164,29 @@ fun FinancialCard(total: BigDecimal) {
 }
 
 @Composable
-fun ModuleCard(title: String, icon: androidx.compose.ui.graphics.vector.ImageVector, iconTint: Color) {
-    Card(
-        modifier = Modifier
-            .size(120.dp)
-            .shadow(8.dp, RoundedCornerShape(12.dp)),
-        colors = CardDefaults.cardColors(containerColor = Color.White)
+fun OperationButton(title: String, icon: androidx.compose.ui.graphics.vector.ImageVector, onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth().height(80.dp),
+        shape = CarsilShapes.Medium,
+        color = Color.White,
+        border = BorderStroke(1.dp, CarsilColors.Stroke)
     ) {
-        Column(
-            modifier = Modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally
+        Row(
+            modifier = Modifier.padding(horizontal = 20.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(icon, contentDescription = title, tint = iconTint, modifier = Modifier.size(40.dp))
-            Spacer(Modifier.height(8.dp))
-            Text(title, fontWeight = FontWeight.Bold, color = Color(0xFF2C5364))
+            Box(
+                modifier = Modifier
+                    .size(44.dp)
+                    .clip(CarsilShapes.Small)
+                    .background(Color.Black),   
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(icon, null, tint = Color.White, modifier = Modifier.size(20.dp))
+            }
+            Spacer(modifier = Modifier.width(16.dp))
+            Text(title, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = CarsilColors.TextPrimary)
         }
     }
 }

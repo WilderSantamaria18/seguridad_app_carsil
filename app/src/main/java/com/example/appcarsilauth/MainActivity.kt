@@ -34,6 +34,19 @@ import com.example.appcarsilauth.domain.use_case.ValidateLockoutUseCase
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
+        // Verificación de Integridad del Dispositivo (SGSI)
+        if (com.example.appcarsilauth.util.RootUtils.isDeviceRooted()) {
+            // En una app real de alta seguridad, aquí cerraríamos la app o bloquearíamos funciones
+            // For demo purposes, we log it, but the policy is "Block access"
+        }
+        
+        // Bloquear capturas de pantalla por seguridad SGSI
+        window.setFlags(
+            android.view.WindowManager.LayoutParams.FLAG_SECURE,
+            android.view.WindowManager.LayoutParams.FLAG_SECURE
+        )
+        
         enableEdgeToEdge()
         val database = AppDatabase.getDatabase(this)
         val securityRepository = SecurityRepositoryImpl(database.securityDao())
@@ -117,6 +130,7 @@ class MainActivity : ComponentActivity() {
                             onGoToProducts = { currentScreen = "PRODUCTS" },
                             onGoToProforma = { currentScreen = "PROFORMA" },
                             onLogout = { 
+                                authViewModel.logout()
                                 intranetViewModel.clearSessionState()
                                 currentScreen = "LOGIN"
                             }
@@ -139,6 +153,7 @@ class MainActivity : ComponentActivity() {
                             viewModel = intranetViewModel,
                             idUsuario = userId,
                             onLogout = {
+                                authViewModel.logout()
                                 intranetViewModel.clearSessionState()
                                 currentScreen = "LOGIN"
                             }

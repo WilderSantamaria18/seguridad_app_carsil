@@ -20,6 +20,8 @@ import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.appcarsilauth.ui.components.CarsilColors
+import com.example.appcarsilauth.ui.components.CarsilShapes
 import kotlin.random.Random
 
 @Composable
@@ -43,8 +45,8 @@ fun CaptchaComponent(
             modifier = Modifier
                 .weight(1f)
                 .height(60.dp)
-                .clip(RoundedCornerShape(8.dp))
-                .background(Color(0xFFE2E8F0)) // Fondo gris claro industrial
+                .clip(CarsilShapes.Medium)
+                .background(Color(0xFFEEEEEE)) // Gris neutro muy claro
                 .clickable { captchaText = generateRandomCode() },
             contentAlignment = Alignment.Center
         ) {
@@ -53,14 +55,18 @@ fun CaptchaComponent(
 
         Spacer(Modifier.width(8.dp))
 
-        // Botón de refrescar
         IconButton(
             onClick = { captchaText = generateRandomCode() },
             modifier = Modifier
                 .size(48.dp)
-                .background(Color(0xFF1E293B), RoundedCornerShape(8.dp))
+                .clip(CarsilShapes.Medium)
+                .background(Color.Black)
         ) {
-            Icon(Icons.Default.Refresh, contentDescription = "Refrescar", tint = Color.White)
+            Icon(
+                imageVector = Icons.Default.Refresh,
+                contentDescription = "Refrescar",
+                tint = Color.White
+            )
         }
     }
 }
@@ -94,19 +100,23 @@ fun CaptchaCanvas(text: String) {
         drawContext.canvas.nativeCanvas.apply {
             val paint = android.graphics.Paint().apply {
                 color = android.graphics.Color.BLACK
-                textSize = 70f
+                textSize = 65f // Reducido para asegurar espacio
                 isFakeBoldText = true
-                letterSpacing = 0.2f
+                isAntiAlias = true
+                letterSpacing = 0.05f
             }
             
-            // Dibujar cada letra con una ligera rotación aleatoria
-            var currentX = 40f
+            // Medir ancho total
+            val textWidth = paint.measureText(text)
+            var currentX = (width - textWidth) / 2
+            
             text.forEach { char ->
                 save()
-                rotate(Random.nextInt(-15, 15).toFloat(), currentX, height / 2)
+                rotate(Random.nextInt(-10, 10).toFloat(), currentX + 10f, height / 2)
                 drawText(char.toString(), currentX, height / 2 + 25f, paint)
                 restore()
-                currentX += (width - 80f) / text.length
+                // El incremento debe ser proporcional al espacio medido
+                currentX += (textWidth / text.length)
             }
         }
     }
