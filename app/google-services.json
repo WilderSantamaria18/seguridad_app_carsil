@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "1046090200761",
+    "project_id": "carsilauthapp",
+    "storage_bucket": "carsilauthapp.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1046090200761:android:2c0a44f56910bb9c5c4d68",
+        "android_client_info": {
+          "package_name": "com.example.appcarsilauth"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "1046090200761-tq0v66e7dr2h0413g3fteu62207a2puj.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.appcarsilauth",
+            "certificate_hash": "0461f994c19fa253fe23568da891661cfc02e426"
+          }
+        },
+        {
+          "client_id": "1046090200761-2ha39tvii4nh7sr0uh184jsn032c403i.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBMDxPBi-YohAjLS3gAKBWZndXxXaVc5H8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1046090200761-2ha39tvii4nh7sr0uh184jsn032c403i.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

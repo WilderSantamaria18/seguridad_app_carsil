@@ -1,0 +1,44 @@
+package com.example.appcarsilauth.domain.use_case
+
+import com.example.appcarsilauth.domain.repository.SecurityRepository
+
+class ValidateLockoutUseCase(
+    private val securityRepository: SecurityRepository
+) {
+    companion object {
+        const val MAX_ATTEMPTS = 3
+        const val LOCKOUT_DURATION_MS = 10 * 60 * 1000L // 10 minutes
+    }
+
+    suspend fun isLockedOut(userId: String): Boolean {
+        val status = securityRepository.getSecurityStatus(userId) ?: return false
+        val currentTime = System.currentTimeMillis()
+        
+        return if (status.lockoutUntil > currentTime) {
+            true // Still locked out
+        } else {
+            // Lockout expired, reset security parameters natively
+            if (status.lockoutUntil > 0) {
+                securityRepository.resetSecurity(userId)
+            }
+            false
+        }
+    }
+
+    suspend fun recordFailedLogin(userId: String): Boolean {
+        securityRepository.recordFailedAttempt(userId)
+        val status = securityRepository.getSecurityStatus(userId)
+        
+        if (status != null && status.failedAttempts >= MAX_ATTEMPTS) {
+            securityRepository.lockoutUser(userId, LOCKOUT_DURATION_MS)
+            return true // Triggered Lockout
+        }
+        return false // Not locked out yet
+    }
+    
+    suspend fun getRemainingLockoutTimeMs(userId: String): Long {
+        val status = securityRepository.getSecurityStatus(userId) ?: return 0L
+        val remaining = status.lockoutUntil - System.currentTimeMillis()
+        return if (remaining > 0) remaining else 0L
+    }
+}
