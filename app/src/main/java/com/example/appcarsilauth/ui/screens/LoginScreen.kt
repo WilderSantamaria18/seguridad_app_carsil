@@ -4,7 +4,9 @@ import androidx.compose.animation.*
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -18,6 +20,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
@@ -31,9 +36,8 @@ import com.example.appcarsilauth.ui.viewmodel.AuthViewModel
 @Composable
 fun LoginScreen(viewModel: AuthViewModel) {
     val authState by viewModel.authState.collectAsState()
-    var email by remember { mutableStateOf("") }
-    var pin by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
+    val captchaVerified = viewModel.isCaptchaVerified
 
     Box(
         modifier = Modifier
@@ -55,15 +59,18 @@ fun LoginScreen(viewModel: AuthViewModel) {
         BoxWithConstraints(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(16.dp),
+                .padding(16.dp)
+                .imePadding(),
             contentAlignment = Alignment.Center
         ) {
             val isWide = maxWidth > 600.dp
+            val formScrollState = rememberScrollState()
 
             Card(
                 modifier = Modifier
+                    .fillMaxWidth()
                     .widthIn(max = if (isWide) 1000.dp else 450.dp)
-                    .heightIn(min = 600.dp)
+                    .heightIn(min = if (isWide) 560.dp else 0.dp)
                     .shadow(elevation = 40.dp, shape = RoundedCornerShape(24.dp)),
                 shape = RoundedCornerShape(24.dp),
                 colors = CardDefaults.cardColors(containerColor = Color.White)
@@ -74,8 +81,9 @@ fun LoginScreen(viewModel: AuthViewModel) {
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxHeight()
-                            .padding(horizontal = 40.dp, vertical = 48.dp),
-                        verticalArrangement = Arrangement.SpaceBetween
+                            .verticalScroll(formScrollState)
+                            .padding(horizontal = if (isWide) 40.dp else 20.dp, vertical = if (isWide) 48.dp else 24.dp),
+                        verticalArrangement = Arrangement.Top
                     ) {
                         Column {
                             // Logo (Simulado si no existe R.drawable.carsil_logo)
@@ -138,6 +146,10 @@ fun LoginScreen(viewModel: AuthViewModel) {
                                 modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
                                 placeholder = { Text("usuario@carsil.com", color = Color(0xFFCBD5E1)) },
                                 leadingIcon = { Icon(Icons.Default.Email, null, tint = CarsilColors.Gray400, modifier = Modifier.size(18.dp)) },
+                                keyboardOptions = KeyboardOptions(
+                                    keyboardType = KeyboardType.Email,
+                                    capitalization = KeyboardCapitalization.None
+                                ),
                                 shape = RoundedCornerShape(10.dp),
                                 singleLine = true,
                                 colors = OutlinedTextFieldDefaults.colors(
@@ -163,6 +175,10 @@ fun LoginScreen(viewModel: AuthViewModel) {
                                         Icon(if (passwordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility, null, tint = CarsilColors.Gray400)
                                     }
                                 },
+                                keyboardOptions = KeyboardOptions(
+                                    keyboardType = KeyboardType.Password,
+                                    capitalization = KeyboardCapitalization.None
+                                ),
                                 visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                                 shape = RoundedCornerShape(10.dp),
                                 singleLine = true,
@@ -187,6 +203,10 @@ fun LoginScreen(viewModel: AuthViewModel) {
                                 modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
                                 placeholder = { Text("Introduce el código de arriba", color = Color(0xFFCBD5E1)) },
                                 leadingIcon = { Icon(Icons.Default.Security, null, tint = CarsilColors.Gray400, modifier = Modifier.size(18.dp)) },
+                                keyboardOptions = KeyboardOptions(
+                                    keyboardType = KeyboardType.Ascii,
+                                    capitalization = KeyboardCapitalization.Characters
+                                ),
                                 shape = RoundedCornerShape(10.dp),
                                 singleLine = true,
                                 colors = OutlinedTextFieldDefaults.colors(
@@ -197,6 +217,43 @@ fun LoginScreen(viewModel: AuthViewModel) {
                                     cursorColor = Color.Black
                                 )
                             )
+
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            OutlinedButton(
+                                onClick = { viewModel.verifyCaptchaBeforeLogin() },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(48.dp),
+                                shape = RoundedCornerShape(10.dp),
+                                border = androidx.compose.foundation.BorderStroke(
+                                    1.dp,
+                                    if (captchaVerified) Color(0xFF86EFAC) else Color(0xFFCBD5E1)
+                                ),
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    containerColor = if (captchaVerified) Color(0xFFECFDF3) else Color(0xFFF8FAFC),
+                                    contentColor = if (captchaVerified) Color(0xFF166534) else Color(0xFF0F172A)
+                                )
+                            ) {
+                                Icon(
+                                    if (captchaVerified) Icons.Default.CheckCircle else Icons.Default.Security,
+                                    null,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    if (captchaVerified) "Verificado: no soy un robot" else "No soy un robot (verificar)",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp
+                                )
+                            }
+
+                            Text(
+                                text = "Paso 1: verifica que no eres robot. Paso 2: presiona Iniciar sesión.",
+                                fontSize = 11.sp,
+                                color = CarsilColors.Gray400,
+                                modifier = Modifier.padding(top = 8.dp)
+                            )
                             // ----------------------------------------
 
                             Spacer(modifier = Modifier.height(24.dp))
@@ -204,6 +261,7 @@ fun LoginScreen(viewModel: AuthViewModel) {
                             // Botón con Gradiente Premium
                             Button(
                                 onClick = { viewModel.attemptLogin(viewModel.email, viewModel.pin) },
+                                enabled = captchaVerified,
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .height(52.dp)
@@ -223,6 +281,8 @@ fun LoginScreen(viewModel: AuthViewModel) {
                                 }
                             }
                         }
+
+                        Spacer(modifier = Modifier.height(24.dp))
 
                         Text(
                             text = "© 2026 CARSIL Equipos y Servicios. Todos los derechos reservados.",

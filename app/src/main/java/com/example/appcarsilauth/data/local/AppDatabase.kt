@@ -19,14 +19,17 @@ import kotlinx.coroutines.launch
         SecurityControl::class,
         AuditLog::class,
         RolEntity::class,
+        PermisoEntity::class,
         UsuarioEntity::class,
+        EmpresaEntity::class,
         ClienteEntity::class,
         ProductoEntity::class,
         ProformaEntity::class,
+        DetalleProformaEntity::class,
         EmpleadoEntity::class,
         AsistenciaEntity::class
     ],
-    version = 8,
+    version = 9,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -68,34 +71,207 @@ abstract class AppDatabase : RoomDatabase() {
                         RolEntity(3, "Supervisor"),
                         RolEntity(4, "Vendedor")
                     ))
+
+                    dao.insertPermisos(listOf(
+                        PermisoEntity(IdRol = 1, NombreMenu = "Dashboard"),
+                        PermisoEntity(IdRol = 1, NombreMenu = "Clientes"),
+                        PermisoEntity(IdRol = 1, NombreMenu = "Productos"),
+                        PermisoEntity(IdRol = 1, NombreMenu = "Proformas"),
+                        PermisoEntity(IdRol = 1, NombreMenu = "Asistencia"),
+                        PermisoEntity(IdRol = 3, NombreMenu = "Dashboard"),
+                        PermisoEntity(IdRol = 3, NombreMenu = "Clientes"),
+                        PermisoEntity(IdRol = 3, NombreMenu = "Productos"),
+                        PermisoEntity(IdRol = 3, NombreMenu = "Proformas"),
+                        PermisoEntity(IdRol = 3, NombreMenu = "Asistencia"),
+                        PermisoEntity(IdRol = 2, NombreMenu = "Asistencia"),
+                        PermisoEntity(IdRol = 4, NombreMenu = "Dashboard"),
+                        PermisoEntity(IdRol = 4, NombreMenu = "Clientes"),
+                        PermisoEntity(IdRol = 4, NombreMenu = "Productos"),
+                        PermisoEntity(IdRol = 4, NombreMenu = "Proformas")
+                    ))
+
+                    dao.insertEmpresas(listOf(
+                        EmpresaEntity(
+                            IdEmpresa = 1,
+                            Nombre = "CARSIL Bombas Hidraulicas S.A.C.",
+                            RUC = "20601234571",
+                            Direccion = "Av. Industrial 456, Zona Industrial, Ate, Lima",
+                            Telefono = "014567890",
+                            Celular = "987321654",
+                            Email = "ventas@carsil.com.pe"
+                        )
+                    ))
                     
                     dao.insertUsuarios(listOf(
-                        UsuarioEntity(1, "Carlos Enrique", "csilva@carsil.com", "\$2a\$10\$qb/OBcDiKog7VNClJFXdbukdiQqFiJbXkzMKHUxcvgQihE7zVuLdS", 1),
-                        UsuarioEntity(2, "Rosa Amelia", "rparedes@carsil.com", "\$2a\$10\$qb/OBcDiKog7VNClJFXdbukdiQqFiJbXkzMKHUxcvgQihE7zVuLdS", 3),
-                        UsuarioEntity(3, "Miguel Ángel", "mfuentes@carsil.com", "\$2a\$10\$qb/OBcDiKog7VNClJFXdbukdiQqFiJbXkzMKHUxcvgQihE7zVuLdS", 3),
-                        UsuarioEntity(4, "Jean Pierre", "jenriquez@carsil.com", "\$2a\$10\$qb/OBcDiKog7VNClJFXdbukdiQqFiJbXkzMKHUxcvgQihE7zVuLdS", 2)
+                        UsuarioEntity(
+                            IdUsuario = 1,
+                            Nombres = "Carlos Enrique",
+                            Apellidos = "Silva Romero",
+                            TipoDocumento = "DNI",
+                            NumeroDocumento = "42187634",
+                            Correo = "csilva@carsil.com",
+                            Clave = "\$2a\$10\$qb/OBcDiKog7VNClJFXdbukdiQqFiJbXkzMKHUxcvgQihE7zVuLdS",
+                            IdRol = 1,
+                            Estado = 1,
+                            Telefono = "987321654",
+                            Direccion = "Av. Industrial 456, Ate, Lima"
+                        ),
+                        UsuarioEntity(
+                            IdUsuario = 2,
+                            Nombres = "Rosa Amelia",
+                            Apellidos = "Paredes Quispe",
+                            TipoDocumento = "DNI",
+                            NumeroDocumento = "47263819",
+                            Correo = "rparedes@carsil.com",
+                            Clave = "\$2a\$10\$qb/OBcDiKog7VNClJFXdbukdiQqFiJbXkzMKHUxcvgQihE7zVuLdS",
+                            IdRol = 3,
+                            Estado = 1,
+                            Telefono = "986452371",
+                            Direccion = "Jr. Los Alamos 238, Ate, Lima"
+                        ),
+                        UsuarioEntity(
+                            IdUsuario = 3,
+                            Nombres = "Miguel Angel",
+                            Apellidos = "Fuentes Cardenas",
+                            TipoDocumento = "DNI",
+                            NumeroDocumento = "43572810",
+                            Correo = "mfuentes@carsil.com",
+                            Clave = "\$2a\$10\$qb/OBcDiKog7VNClJFXdbukdiQqFiJbXkzMKHUxcvgQihE7zVuLdS",
+                            IdRol = 3,
+                            Estado = 1,
+                            Telefono = "998761234",
+                            Direccion = "Calle Moquegua 112, San Luis, Lima"
+                        ),
+                        UsuarioEntity(
+                            IdUsuario = 4,
+                            Nombres = "Jean Pierre",
+                            Apellidos = "Enriquez Solano",
+                            TipoDocumento = "DNI",
+                            NumeroDocumento = "72384910",
+                            Correo = "jenriquez@carsil.com",
+                            Clave = "\$2a\$10\$qb/OBcDiKog7VNClJFXdbukdiQqFiJbXkzMKHUxcvgQihE7zVuLdS",
+                            IdRol = 2,
+                            Estado = 1,
+                            Telefono = "975638241",
+                            Direccion = "Av. Primavera 567, La Molina, Lima"
+                        )
                     ))
                     
                     dao.insertClientes(listOf(
-                        ClienteEntity(1, "20501234567", "Constructora Los Andes S.A.C."),
-                        ClienteEntity(2, "20602345678", "Minera El Dorado S.A."),
-                        ClienteEntity(3, "20703456789", "Agroindustrial del Pacifico S.A.C.")
+                        ClienteEntity(
+                            IdCliente = 1,
+                            Documento = "20501234567",
+                            RazonSocial = "Constructora Los Andes S.A.C.",
+                            Direccion = "Av. Javier Prado 1234, San Isidro, Lima",
+                            Telefono = "016543210",
+                            Celular = "912345678",
+                            Email = "compras@losandes.com",
+                            Contacto = "Roberto Sanchez",
+                            Estado = 1
+                        ),
+                        ClienteEntity(
+                            IdCliente = 2,
+                            Documento = "20602345678",
+                            RazonSocial = "Minera El Dorado S.A.",
+                            Direccion = "Carretera Central Km 45, Junin",
+                            Telefono = "064543211",
+                            Celular = "912345679",
+                            Email = "logistica@eldorado.com",
+                            Contacto = "Fernando Quispe",
+                            Estado = 1
+                        ),
+                        ClienteEntity(
+                            IdCliente = 3,
+                            Documento = "20703456789",
+                            RazonSocial = "Agroindustrial del Pacifico S.A.C.",
+                            Direccion = "Fundo La Victoria, Ica",
+                            Telefono = "056543212",
+                            Celular = "912345680",
+                            Email = "compras@agropacifico.com",
+                            Contacto = "Patricia Gomez",
+                            Estado = 1
+                        )
                     ))
 
                     dao.insertProductos(listOf(
-                        ProductoEntity(1, "Bomba Sumergible 1HP", 850.00, 25),
-                        ProductoEntity(2, "Bomba Sumergible 2HP", 1200.00, 15),
-                        ProductoEntity(3, "Bomba Sumergible 3HP", 1800.00, 10),
-                        ProductoEntity(4, "Tablero de Control CARSIL-V1", 450.00, 5),
-                        ProductoEntity(5, "Sensor de Nivel Hidráulico", 120.00, 50)
+                        ProductoEntity(
+                            IdProducto = 1,
+                            Codigo = "BOM-SUM-001",
+                            Nombre = "Bomba Sumergible 1HP",
+                            Descripcion = "Bomba sumergible para pozo profundo, acero inoxidable, 1HP, 220V",
+                            Marca = "Pedrollo",
+                            Modelo = "4SR1m/13",
+                            Tipo = "Sumergible",
+                            UnidadMedida = "UNID",
+                            PrecioUnitario = 850.00,
+                            Stock = 25,
+                            StockMinimo = 5,
+                            Estado = 1
+                        ),
+                        ProductoEntity(
+                            IdProducto = 2,
+                            Codigo = "BOM-SUM-002",
+                            Nombre = "Bomba Sumergible 2HP",
+                            Descripcion = "Bomba sumergible para aguas limpias, 2HP, 380V",
+                            Marca = "Grundfos",
+                            Modelo = "SP 5-50",
+                            Tipo = "Sumergible",
+                            UnidadMedida = "UNID",
+                            PrecioUnitario = 1200.00,
+                            Stock = 15,
+                            StockMinimo = 5,
+                            Estado = 1
+                        ),
+                        ProductoEntity(
+                            IdProducto = 3,
+                            Codigo = "BOM-SUM-003",
+                            Nombre = "Bomba Sumergible 3HP",
+                            Descripcion = "Bomba sumergible para aguas residuales con solidos",
+                            Marca = "Ebara",
+                            Modelo = "Drainage DVS",
+                            Tipo = "Sumergible",
+                            UnidadMedida = "UNID",
+                            PrecioUnitario = 1800.00,
+                            Stock = 10,
+                            StockMinimo = 3,
+                            Estado = 1
+                        ),
+                        ProductoEntity(
+                            IdProducto = 4,
+                            Codigo = "ELE-001",
+                            Nombre = "Electrobomba Centrifuga 1HP",
+                            Descripcion = "Electrobomba horizontal monofasica, 1HP",
+                            Marca = "Pedrollo",
+                            Modelo = "PKm 60",
+                            Tipo = "Centrifuga",
+                            UnidadMedida = "UNID",
+                            PrecioUnitario = 480.00,
+                            Stock = 12,
+                            StockMinimo = 5,
+                            Estado = 1
+                        ),
+                        ProductoEntity(
+                            IdProducto = 5,
+                            Codigo = "ACC-CON-002",
+                            Nombre = "Controlador de Bomba",
+                            Descripcion = "Controlador electronico para bomba con proteccion por sequia",
+                            Marca = "Franklin",
+                            Modelo = "Control Pro",
+                            Tipo = "Accesorio",
+                            UnidadMedida = "UNID",
+                            PrecioUnitario = 120.00,
+                            Stock = 50,
+                            StockMinimo = 10,
+                            Estado = 1
+                        )
                     ))
 
                     // Empleados de CARSIL (vinculados al Usuario)
                     dao.insertEmpleados(listOf(
-                        EmpleadoEntity(1, 1, "Administrador del Sistema", "Administración"),
-                        EmpleadoEntity(2, 2, "Supervisor de Operaciones", "Operaciones"),
-                        EmpleadoEntity(3, 3, "Supervisor Comercial", "Ventas"),
-                        EmpleadoEntity(4, 4, "Técnico en Bombas Hidráulicas", "Mantenimiento")
+                        EmpleadoEntity(1, 1, "Administrador del Sistema", "Administracion", "2022-03-01", "INDEFINIDO", 500.00),
+                        EmpleadoEntity(2, 2, "Supervisor de Operaciones", "Operaciones", "2022-06-15", "INDEFINIDO", 420.00),
+                        EmpleadoEntity(3, 3, "Supervisor Comercial", "Ventas", "2023-01-10", "INDEFINIDO", 400.00),
+                        EmpleadoEntity(4, 4, "Tecnico en Bombas Hidraulicas", "Mantenimiento", "2023-04-01", "INDEFINIDO", 280.00)
                     ))
                 }
             }

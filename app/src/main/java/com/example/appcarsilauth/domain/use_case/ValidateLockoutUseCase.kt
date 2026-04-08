@@ -35,6 +35,10 @@ class ValidateLockoutUseCase(
         }
         return false // Not locked out yet
     }
+
+    suspend fun onSuccessfulLogin(userId: String) {
+        securityRepository.resetSecurity(userId)
+    }
     
     suspend fun getRemainingLockoutTimeMs(userId: String): Long {
         val status = securityRepository.getSecurityStatus(userId) ?: return 0L

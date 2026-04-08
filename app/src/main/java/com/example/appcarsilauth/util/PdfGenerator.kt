@@ -70,7 +70,7 @@ object PdfGenerator {
         canvas.drawText("CLIENTE:", 50f, 200f, paint)
         paint.typeface = Typeface.DEFAULT
         canvas.drawText(cliente.RazonSocial, 50f, 215f, paint)
-        canvas.drawText("RUC: ${cliente.Ruc} | Dirección: ${cliente.Direccion}", 50f, 230f, paint)
+        canvas.drawText("RUC: ${cliente.Documento} | Direccion: ${cliente.Direccion ?: "No registrada"}", 50f, 230f, paint)
 
         // --- TABLA DE PRODUCTOS ---
         // Encabezados tabla
@@ -115,7 +115,7 @@ object PdfGenerator {
         // --- PIE DE PÁGINA SEGURIDAD (CARSIL-POL-INT) ---
         paint.textSize = 9f
         paint.color = Color.GRAY
-        paint.typeface = Typeface.ITALIC
+        paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.ITALIC)
         canvas.drawText("Documento generado digitalmente por CARSIL Intranet. Válido por 15 días.", 40f, 800f, paint)
         canvas.drawText("Hash de Integridad: ${UUID.randomUUID().toString().substring(0, 8)}", 40f, 815f, paint)
 

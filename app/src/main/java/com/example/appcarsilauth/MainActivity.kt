@@ -21,7 +21,8 @@ import com.example.appcarsilauth.ui.screens.LoginScreen
 import com.example.appcarsilauth.ui.screens.DashboardScreen
 import com.example.appcarsilauth.ui.screens.ProformaScreen
 import com.example.appcarsilauth.ui.screens.AttendanceScreen
-import com.example.appcarsilauth.ui.screens.InventoryScreen
+import com.example.appcarsilauth.ui.screens.ClientsScreen
+import com.example.appcarsilauth.ui.screens.ProductsScreen
 import com.example.appcarsilauth.util.JwtTokenManager
 import com.example.appcarsilauth.ui.viewmodel.AuthViewModel
 import com.example.appcarsilauth.ui.viewmodel.AuthState
@@ -55,7 +56,8 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             val authState by authViewModel.authState.collectAsState()
-            var currentScreen by remember { mutableStateOf("LOGIN") } // LOGIN, DASHBOARD, PROFORMA, ATTENDANCE
+            val allowedMenus by intranetViewModel.allowedMenus.collectAsState()
+            var currentScreen by remember { mutableStateOf("LOGIN") } // LOGIN, DASHBOARD, CLIENTS, PRODUCTS, PROFORMA, ATTENDANCE
             var userEmail by remember { mutableStateOf("") }
             var userRoleId by remember { mutableStateOf(1) }
             var userId by remember { mutableStateOf(1) } // Default 1
@@ -64,6 +66,11 @@ class MainActivity : ComponentActivity() {
             LaunchedEffect(authState) {
                 when (val state = authState) {
                     is AuthState.Success -> {
+                        if (!JwtTokenManager.isTokenValid(state.tokenJwt)) {
+                            currentScreen = "LOGIN"
+                            return@LaunchedEffect
+                        }
+
                         // Extraer datos del JWT
                         val jwtParts = state.tokenJwt.split(".")
                         if (jwtParts.size == 3) {
@@ -76,6 +83,7 @@ class MainActivity : ComponentActivity() {
                                 userId = json.getInt("sub")
                                 userEmail = json.getString("email")
                                 userRoleId = json.getInt("roleId")
+                                intranetViewModel.loadAllowedMenus(userRoleId)
 
                                 // Navegación instantánea según Rol
                                 currentScreen = if (userRoleId == 2) "ATTENDANCE" else "DASHBOARD"
@@ -86,7 +94,7 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                     is AuthState.Idle, is AuthState.Error, is AuthState.LockedOut -> {
-                        if (currentScreen != "PROFORMA" && currentScreen != "INVENTORY") {
+                        if (currentScreen != "PROFORMA" && currentScreen != "CLIENTS" && currentScreen != "PRODUCTS") {
                             // Solo volvemos a LOGIN si no estamos en un sub-módulo persistente
                             currentScreen = "LOGIN"
                         }
@@ -104,26 +112,36 @@ class MainActivity : ComponentActivity() {
                         "DASHBOARD" -> DashboardScreen(
                             email = userEmail,
                             roleId = userRoleId,
+                            allowedMenus = allowedMenus,
+                            onGoToClients = { currentScreen = "CLIENTS" },
+                            onGoToProducts = { currentScreen = "PRODUCTS" },
                             onGoToProforma = { currentScreen = "PROFORMA" },
-                            onGoToInventory = { currentScreen = "INVENTORY" },
                             onLogout = { 
+                                intranetViewModel.clearSessionState()
                                 currentScreen = "LOGIN"
                             }
+                        )
+                        "CLIENTS" -> ClientsScreen(
+                            viewModel = intranetViewModel,
+                            onBack = { currentScreen = "DASHBOARD" }
+                        )
+                        "PRODUCTS" -> ProductsScreen(
+                            viewModel = intranetViewModel,
+                            onBack = { currentScreen = "DASHBOARD" }
                         )
                         "PROFORMA" -> ProformaScreen(
                             viewModel = intranetViewModel,
                             idUsuario = userId,
                             onBack = { currentScreen = "DASHBOARD" }
                         )
-                        "INVENTORY" -> InventoryScreen(
-                            viewModel = intranetViewModel,
-                            onBack = { currentScreen = "DASHBOARD" }
-                        )
                         "ATTENDANCE" -> AttendanceScreen(
                             email = userEmail,
                             viewModel = intranetViewModel,
                             idUsuario = userId,
-                            onLogout = { currentScreen = "LOGIN" }
+                            onLogout = {
+                                intranetViewModel.clearSessionState()
+                                currentScreen = "LOGIN"
+                            }
                         )
                         else -> LoginScreen(viewModel = authViewModel)
                     }

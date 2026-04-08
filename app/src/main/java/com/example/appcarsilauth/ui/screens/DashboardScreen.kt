@@ -6,6 +6,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -24,18 +25,16 @@ import java.math.BigDecimal
 fun DashboardScreen(
     email: String = "admin@carsil.com",
     roleId: Int = 1,
+    allowedMenus: List<String> = emptyList(),
+    onGoToClients: () -> Unit = {},
+    onGoToProducts: () -> Unit = {},
     onGoToProforma: () -> Unit = {},
-    onGoToInventory: () -> Unit = {},
     onLogout: () -> Unit = {},
     verifiedTotalIncome: BigDecimal = BigDecimal("23824.20")
 ) {
-    val roleName = when(roleId) {
-        1 -> "ADMINISTRADOR"
-        2 -> "EMPLEADO"
-        3 -> "SUPERVISOR"
-        4 -> "VENDEDOR"
-        else -> "DESCONOCIDO"
-    }
+    val canUseClients = if (allowedMenus.isEmpty()) roleId != 2 else allowedMenus.contains("Clientes")
+    val canUseProducts = if (allowedMenus.isEmpty()) roleId != 2 else allowedMenus.contains("Productos")
+    val canUseProformas = if (allowedMenus.isEmpty()) roleId != 2 else allowedMenus.contains("Proformas")
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -77,8 +76,15 @@ fun DashboardScreen(
             Spacer(modifier = Modifier.height(16.dp))
             
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                ModuleCard("Proformas", Icons.Default.List, Color(0xFF4FC3F7))
-                ModuleCard("Catálogo", Icons.Default.Build, Color(0xFF69F0AE))
+                if (canUseClients) {
+                    ModuleCard("Clientes", Icons.Default.Person, Color(0xFF60A5FA))
+                }
+                if (canUseProducts) {
+                    ModuleCard("Productos", Icons.Default.Build, Color(0xFF34D399))
+                }
+                if (canUseProformas) {
+                    ModuleCard("Proformas", Icons.Default.List, Color(0xFF4FC3F7))
+                }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -89,26 +95,45 @@ fun DashboardScreen(
             )
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Intranet Proforma & Inventory Module Button (Only non-employees can do this)
-            if (roleId != 2) {
+            // Botones de modulos segun permisos en tabla PERMISO
+            if (canUseClients || canUseProducts || canUseProformas) {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(
-                        onClick = onGoToProforma,
-                        modifier = Modifier.weight(1f).height(60.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4FC3F7))
-                    ) {
-                        Text("PROFORMAS", fontWeight = FontWeight.Bold, color = Color.Black)
+                    if (canUseClients) {
+                        Button(
+                            onClick = onGoToClients,
+                            modifier = Modifier.weight(1f).height(60.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF60A5FA))
+                        ) {
+                            Text("CLIENTES", fontWeight = FontWeight.Bold, color = Color.White)
+                        }
                     }
-                    
-                    // Nuevo Módulo de Inventario
-                    Button(
-                        onClick = { onGoToInventory() },
-                        modifier = Modifier.weight(1f).height(60.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF3B49DF))
-                    ) {
-                        Text("INVENTARIO", fontWeight = FontWeight.Bold, color = Color.White)
+
+                    if (canUseProducts) {
+                        Button(
+                            onClick = onGoToProducts,
+                            modifier = Modifier.weight(1f).height(60.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981))
+                        ) {
+                            Text("PRODUCTOS", fontWeight = FontWeight.Bold, color = Color.White)
+                        }
+                    }
+
+                    if (canUseProformas) {
+                        Button(
+                            onClick = onGoToProforma,
+                            modifier = Modifier.weight(1f).height(60.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4FC3F7))
+                        ) {
+                            Text("PROFORMAS", fontWeight = FontWeight.Bold, color = Color.Black)
+                        }
                     }
                 }
+            } else {
+                Text(
+                    text = "No tienes modulos operativos habilitados para esta sesion.",
+                    color = Color.Gray,
+                    fontSize = 14.sp
+                )
             }
             
             Spacer(modifier = Modifier.height(16.dp))
