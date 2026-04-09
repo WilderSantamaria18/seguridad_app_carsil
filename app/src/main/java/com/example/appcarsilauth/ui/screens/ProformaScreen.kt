@@ -1,24 +1,21 @@
 package com.example.appcarsilauth.ui.screens
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.ShoppingCart
-import androidx.compose.material.icons.filled.PictureAsPdf
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.appcarsilauth.data.local.entity.ClienteEntity
@@ -54,12 +51,14 @@ fun ProformaScreen(
 
         AlertDialog(
             onDismissRequest = { viewModel.resetState(); onBack() },
-            title = { Text("¡Proforma Registrada!", fontWeight = FontWeight.Bold) },
+            title = { Text("Proforma Registrada", fontWeight = FontWeight.Black) },
             text = { 
                 Column {
-                    Text("Los datos se han guardado en el servidor local (SQLite) y el stock ha sido actualizado.")
-                    Spacer(Modifier.height(8.dp))
-                    Text("Código: ${lastProforma?.Codigo}", fontSize = 12.sp, color = Color.Gray)
+                    Text("Los datos se han guardado exitosamente. El stock ha sido actualizado en la base de datos local.", fontSize = 14.sp)
+                    Spacer(Modifier.height(12.dp))
+                    Surface(color = Color(0xFFF1F3F4), shape = RoundedCornerShape(8.dp)) {
+                        Text("Codigo Operacion: ${lastProforma?.Codigo}", modifier = Modifier.padding(8.dp), fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    }
                 }
             },
             confirmButton = {
@@ -67,160 +66,180 @@ fun ProformaScreen(
                     onClick = { 
                         if (lastProforma != null && selectedCliente != null && selectedProducto != null) {
                             com.example.appcarsilauth.util.PdfGenerator.generateProformaPdf(
-                                context = context,
-                                proforma = lastProforma!!,
-                                cliente = selectedCliente!!,
-                                producto = selectedProducto!!,
-                                cantidad = cantidad.toIntOrNull() ?: 0
+                                context = context, proforma = lastProforma!!, cliente = selectedCliente!!, producto = selectedProducto!!, cantidad = cantidad.toIntOrNull() ?: 0
                             )
                         }
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32))
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.Black),
+                    shape = RoundedCornerShape(12.dp)
                 ) {
-                    Icon(Icons.Default.PictureAsPdf, null)
+                    Icon(Icons.Default.PictureAsPdf, null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(8.dp))
-                    Text("DESCARGAR PDF")
+                    Text("Generar PDF")
                 }
             },
             dismissButton = {
                 TextButton(onClick = { viewModel.resetState(); onBack() }) {
-                    Text("VOLVER AL INICIO")
+                    Text("Finalizar", color = Color.Gray)
                 }
-            }
+            },
+            containerColor = Color.White
         )
     }
 
     Scaffold(
+        containerColor = Color(0xFFF8F9FA),
         topBar = {
             TopAppBar(
-                title = { Text("Nueva Proforma (Intranet)") },
+                title = { Text("Generar Proforma", fontWeight = FontWeight.Black) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, "Atrás")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = Color.Black)
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color(0xFF2C5364),
-                    titleContentColor = Color.White,
-                    navigationIconContentColor = Color.White
-                )
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
             )
         }
     ) { padding ->
         Column(
             modifier = Modifier
                 .padding(padding)
-                .padding(24.dp)
                 .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(24.dp)
         ) {
-            Text("Seleccione Cliente del Sistema Web:", fontWeight = FontWeight.Bold, color = Color.Gray)
+            Text("Informacion del Cliente", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.Gray)
+            Spacer(Modifier.height(8.dp))
+            
             ExposedDropdownMenuBox(
                 expanded = showClienteMenu,
                 onExpandedChange = { showClienteMenu = !showClienteMenu }
             ) {
                 OutlinedTextField(
-                    value = selectedCliente?.RazonSocial ?: "Selecciona...",
+                    value = selectedCliente?.RazonSocial ?: "Seleccione un cliente...",
                     onValueChange = {},
                     readOnly = true,
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = showClienteMenu) },
-                    modifier = Modifier.menuAnchor().fillMaxWidth()
+                    modifier = Modifier.menuAnchor().fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Color.Black)
                 )
                 ExposedDropdownMenu(
                     expanded = showClienteMenu,
-                    onDismissRequest = { showClienteMenu = false }
+                    onDismissRequest = { showClienteMenu = false },
+                    modifier = Modifier.background(Color.White)
                 ) {
                     clientes.forEach { cliente ->
                         DropdownMenuItem(
-                            text = { Text(cliente.RazonSocial) },
-                            onClick = {
-                                selectedCliente = cliente
-                                showClienteMenu = false
-                            }
+                            text = { Text(cliente.RazonSocial, fontWeight = FontWeight.Medium) },
+                            onClick = { selectedCliente = cliente; showClienteMenu = false }
                         )
                     }
                 }
             }
 
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(24.dp))
 
-            Text("Añadir Producto:", fontWeight = FontWeight.Bold, color = Color.Gray)
-            ExposedDropdownMenuBox(
-                expanded = showProductoMenu,
-                onExpandedChange = { showProductoMenu = !showProductoMenu }
+            Text("Detalles de Venta", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.Gray)
+            Spacer(Modifier.height(8.dp))
+            
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                color = Color.White,
+                shape = RoundedCornerShape(20.dp),
+                border = BorderStroke(1.dp, Color(0xFFEEEEEE))
             ) {
-                OutlinedTextField(
-                    value = selectedProducto?.Nombre ?: "Selecciona...",
-                    onValueChange = {},
-                    readOnly = true,
-                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = showProductoMenu) },
-                    modifier = Modifier.menuAnchor().fillMaxWidth()
-                )
-                ExposedDropdownMenu(
-                    expanded = showProductoMenu,
-                    onDismissRequest = { showProductoMenu = false }
-                ) {
-                    productos.forEach { producto ->
-                        DropdownMenuItem(
-                            text = { Text("${producto.Nombre} (S/ ${producto.PrecioUnitario})") },
-                            onClick = {
-                                selectedProducto = producto
-                                showProductoMenu = false
-                            }
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    ExposedDropdownMenuBox(
+                        expanded = showProductoMenu,
+                        onExpandedChange = { showProductoMenu = !showProductoMenu }
+                    ) {
+                        OutlinedTextField(
+                            value = selectedProducto?.Nombre ?: "Seleccione Producto...",
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("Producto") },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = showProductoMenu) },
+                            modifier = Modifier.menuAnchor().fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp)
                         )
+                        ExposedDropdownMenu(
+                            expanded = showProductoMenu,
+                            onDismissRequest = { showProductoMenu = false },
+                            modifier = Modifier.background(Color.White)
+                        ) {
+                            productos.forEach { producto ->
+                                DropdownMenuItem(
+                                    text = { Text("${producto.Nombre} (P.U: S/ ${producto.PrecioUnitario})") },
+                                    onClick = { selectedProducto = producto; showProductoMenu = false }
+                                )
+                            }
+                        }
                     }
+
+                    OutlinedTextField(
+                        value = cantidad,
+                        onValueChange = { if(it.all { char -> char.isDigit() }) cantidad = it },
+                        label = { Text("Cantidad a Vender") },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number)
+                    )
                 }
             }
-
-            Spacer(Modifier.height(16.dp))
-
-            OutlinedTextField(
-                value = cantidad,
-                onValueChange = { if(it.all { char -> char.isDigit() }) cantidad = it },
-                label = { Text("Cantidad Numérica") },
-                modifier = Modifier.fillMaxWidth()
-            )
 
             Spacer(Modifier.height(32.dp))
+
+            // RESUMEN DE TOTALES (ESTILO FACTURA)
+            val cantNum = cantidad.toIntOrNull() ?: 0
+            val sub = (selectedProducto?.PrecioUnitario ?: 0.0) * cantNum
+            val igv = sub * 0.18
+            val total = sub + igv
+
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(24.dp),
+                color = Color.Black
+            ) {
+                Column(modifier = Modifier.padding(24.dp)) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("Subtotal", color = Color.White.copy(alpha = 0.6f))
+                        Text("S/ ${"%.2f".format(sub)}", color = Color.White)
+                    }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("IGV (18%)", color = Color.White.copy(alpha = 0.6f))
+                        Text("S/ ${"%.2f".format(igv)}", color = Color.White)
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Divider(color = Color.White.copy(alpha = 0.2f))
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Text("TOTAL", color = Color.White, fontWeight = FontWeight.Black, fontSize = 20.sp)
+                        Text("S/ ${"%.2f".format(total)}", color = Color.White, fontWeight = FontWeight.Black, fontSize = 20.sp)
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(24.dp))
 
             Button(
                 onClick = { 
                     val cant = cantidad.toIntOrNull() ?: 0
                     if (selectedCliente != null && selectedProducto != null && cant > 0) {
-                        viewModel.generarProforma(
-                            idUsuario = idUsuario,
-                            idCliente = selectedCliente!!.IdCliente,
-                            idProducto = selectedProducto!!.IdProducto,
-                            cantidad = cant
-                        )
+                        viewModel.generarProforma(idUsuario, selectedCliente!!.IdCliente, selectedProducto!!.IdProducto, cant)
                     }
                 },
-                modifier = Modifier.fillMaxWidth().height(55.dp),
+                modifier = Modifier.fillMaxWidth().height(58.dp),
                 enabled = selectedCliente != null && selectedProducto != null && cantidad.isNotEmpty(),
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4FC3F7))
+                shape = RoundedCornerShape(16.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Color.Black, disabledContainerColor = Color.LightGray)
             ) {
-                Icon(Icons.Default.ShoppingCart, contentDescription = null, tint = Color(0xFF0F2027))
-                Spacer(Modifier.width(8.dp))
-                Text("GENERAR ORDEN", fontWeight = FontWeight.Bold, color = Color(0xFF0F2027))
+                Icon(Icons.Default.Receipt, null)
+                Spacer(Modifier.width(12.dp))
+                Text("Confirmar Operacion", fontWeight = FontWeight.Bold)
             }
             
-            // Real-time calculation feedback
-            val cantNum = cantidad.toIntOrNull() ?: 0
-            val sub = (selectedProducto?.PrecioUnitario ?: 0.0) * cantNum
-            val igv = sub * 0.18
-            val total = sub + igv
-            if (total > 0) {
-                Spacer(Modifier.height(24.dp))
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFFE8F5E9)),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text("Subtotal: S/ ${"%.2f".format(sub)}")
-                        Text("IGV (18%): S/ ${"%.2f".format(igv)}")
-                        Text("Total: S/ ${"%.2f".format(total)}", fontWeight = FontWeight.Bold, fontSize = 20.sp, color = Color(0xFF2E7D32))
-                    }
-                }
-            }
+            Spacer(Modifier.height(40.dp))
         }
     }
 }

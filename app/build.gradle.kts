@@ -60,6 +60,9 @@ dependencies {
     ksp(libs.room.compiler)
 
     // Firebase
+    // Biometría y Almacenamiento Seguro
+    implementation("androidx.biometric:biometric:1.2.0-alpha05")
+    implementation("androidx.security:security-crypto:1.1.0-alpha06")
     implementation("org.mindrot:jbcrypt:0.4")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.3")
 

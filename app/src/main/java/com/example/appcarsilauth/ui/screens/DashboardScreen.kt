@@ -1,17 +1,15 @@
 package com.example.appcarsilauth.ui.screens
 
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Build
-import androidx.compose.material.icons.filled.List
-import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.automirrored.filled.Logout
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -20,8 +18,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.appcarsilauth.ui.components.CarsilColors
@@ -36,157 +36,238 @@ fun DashboardScreen(
     onGoToClients: () -> Unit = {},
     onGoToProducts: () -> Unit = {},
     onGoToProforma: () -> Unit = {},
+    onGoToProfile: () -> Unit = {},
     onLogout: () -> Unit = {},
-    verifiedTotalIncome: java.math.BigDecimal = java.math.BigDecimal("23824.20")
+    verifiedTotalIncome: BigDecimal = BigDecimal("23824.20")
 ) {
     val canUseClients = if (allowedMenus.isEmpty()) roleId != 2 else allowedMenus.contains("Clientes")
     val canUseProducts = if (allowedMenus.isEmpty()) roleId != 2 else allowedMenus.contains("Productos")
     val canUseProformas = if (allowedMenus.isEmpty()) roleId != 2 else allowedMenus.contains("Proformas")
 
+    val roleName = when (roleId) {
+        1 -> "Administrador"
+        2 -> "Empleado"
+        3 -> "Supervisor"
+        4 -> "Vendedor"
+        else -> "Usuario"
+    }
+
     Scaffold(
-        containerColor = CarsilColors.Background
+        containerColor = Color(0xFFF8F9FA) // Fondo gris extra claro muy elegante
     ) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
                 .padding(horizontal = 24.dp)
-                .verticalScroll(androidx.compose.foundation.rememberScrollState())
         ) {
-            Spacer(modifier = Modifier.height(48.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
-            Text(
-                text = "Dashboard",
-                fontSize = 32.sp,
-                fontWeight = FontWeight.Bold,
-                color = CarsilColors.TextPrimary
-            )
-            
-            Text(
-                text = "Sesión activa: $email",
-                fontSize = 14.sp,
-                color = CarsilColors.TextSecondary,
-                modifier = Modifier.padding(top = 4.dp)
-            )
+            // HEADER CORPORATIVO
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(50.dp)
+                            .clip(CircleShape)
+                            .background(Color.Black),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = email.first().uppercase(),
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 20.sp
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column {
+                        Text(
+                            text = "ERP CARSIL",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.Gray,
+                            letterSpacing = 1.sp
+                        )
+                        Text(
+                            text = roleName,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Black,
+                            color = Color.Black
+                        )
+                    }
+                }
+                
+                IconButton(
+                    onClick = onLogout,
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .background(Color.White)
+                        .border(1.dp, Color.LightGray, CircleShape)
+                ) {
+                    Icon(Icons.AutoMirrored.Filled.Logout, "Salir", tint = Color.Red)
+                }
+            }
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            // Financial Metrics (Administrador / Supervisor)
+            // TARJETA DE INGRESOS (SOLO PARA ADMIN/SUP)
             if (roleId == 1 || roleId == 3) {
-                FinancialCardMinimal(verifiedTotalIncome)
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .shadow(12.dp, RoundedCornerShape(24.dp)),
+                    shape = RoundedCornerShape(24.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.Black)
+                ) {
+                    Column(modifier = Modifier.padding(24.dp)) {
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                "INGRESOS VERIFICADOS",
+                                color = Color.White.copy(alpha = 0.6f),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 1.sp
+                            )
+                            Icon(Icons.Default.TrendingUp, null, tint = Color(0xFF00C853), modifier = Modifier.size(20.dp))
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            "S/ ${verifiedTotalIncome.toPlainString()}",
+                            color = Color.White,
+                            fontSize = 32.sp,
+                            fontWeight = FontWeight.Black
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Surface(
+                            color = Color.White.copy(alpha = 0.1f),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text(
+                                "Actualizado ahora",
+                                color = Color.White.copy(alpha = 0.8f),
+                                fontSize = 10.sp,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
+                    }
+                }
             }
 
             Spacer(modifier = Modifier.height(32.dp))
 
             Text(
-                text = "Operaciones",
-                fontSize = 20.sp,
+                text = "Modulos de Gestion",
+                fontSize = 14.sp,
                 fontWeight = FontWeight.Bold,
-                color = CarsilColors.TextPrimary
+                color = Color.Gray,
+                letterSpacing = 1.sp
             )
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Module Navigation Blocks
-            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                if (canUseClients) {
-                    OperationButton("Gestión de Clientes", Icons.Default.Person, onGoToClients)
-                }
-                if (canUseProducts) {
-                    OperationButton("Inventario de Productos", Icons.Default.Build, onGoToProducts)
-                }
-                if (canUseProformas) {
-                    OperationButton("Proformas y Ventas", Icons.Default.List, onGoToProforma)
+            // GRILLA DE MODULOS
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+            ) {
+                // Fila 1
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    if (canUseClients) {
+                        MenuCard("Clientes", Icons.Default.Groups, onGoToClients, Modifier.weight(1f))
+                    }
+                    if (canUseProducts) {
+                        MenuCard("Inventario", Icons.Default.Inventory, onGoToProducts, Modifier.weight(1f))
+                    }
                 }
                 
-                if (!canUseClients && !canUseProducts && !canUseProformas) {
-                    Text(
-                        "No tienes módulos operativos asignados.",
-                        color = CarsilColors.TextSecondary,
-                        fontSize = 14.sp
-                    )
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                // Fila 2
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    if (canUseProformas) {
+                        MenuCard("Proformas", Icons.Default.ReceiptLong, onGoToProforma, Modifier.weight(1f))
+                    }
+                    // Siempre visible: Perfil
+                    MenuCard("Mi Cuenta", Icons.Default.AccountCircle, onGoToProfile, Modifier.weight(1f))
                 }
+
+                Spacer(modifier = Modifier.height(32.dp))
+                
+                // Info de Pie
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    color = Color.White,
+                    border = BorderStroke(1.dp, Color(0xFFEEEEEE))
+                ) {
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.Info, null, tint = Color.Gray, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(12.dp))
+                        Text(
+                            "Sistema CARSIL v4.0.2 - Acceso Seguro",
+                            fontSize = 12.sp,
+                            color = Color.Gray
+                        )
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(40.dp))
             }
-
-            Spacer(modifier = Modifier.height(48.dp))
-
-            // Logout Pill Button
-            Button(
-                onClick = onLogout,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp),
-                shape = CarsilShapes.Full,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color.White,
-                    contentColor = Color.Black
-                ),
-                border = BorderStroke(1.dp, CarsilColors.Stroke)
-            ) {
-                Text("Cerrar Sesión", fontWeight = FontWeight.Bold)
-            }
-
-            Spacer(modifier = Modifier.height(32.dp))
         }
     }
 }
 
 @Composable
-fun FinancialCardMinimal(total: java.math.BigDecimal) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = CarsilShapes.Medium,
-        colors = CardDefaults.cardColors(containerColor = Color.Black)
-    ) {
-        Column(modifier = Modifier.padding(24.dp)) {
-            Text(
-                "INGRESOS TOTALES",
-                color = Color.White.copy(alpha = 0.6f),
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 1.sp
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                "S/ ${total.toPlainString()}",
-                color = Color.White,
-                fontSize = 32.sp,
-                fontWeight = FontWeight.Bold
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                "Calculado según ventas verificadas",
-                color = Color.Green.copy(alpha = 0.7f),
-                fontSize = 12.sp
-            )
-        }
-    }
-}
-
-@Composable
-fun OperationButton(title: String, icon: androidx.compose.ui.graphics.vector.ImageVector, onClick: () -> Unit) {
+fun MenuCard(title: String, icon: ImageVector, onClick: () -> Unit, modifier: Modifier = Modifier) {
     Surface(
         onClick = onClick,
-        modifier = Modifier.fillMaxWidth().height(80.dp),
-        shape = CarsilShapes.Medium,
+        modifier = modifier.height(130.dp),
+        shape = RoundedCornerShape(24.dp),
         color = Color.White,
-        border = BorderStroke(1.dp, CarsilColors.Stroke)
+        border = BorderStroke(1.dp, Color(0xFFEEEEEE)),
+        shadowElevation = 2.dp
     ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 20.dp),
-            verticalAlignment = Alignment.CenterVertically
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.Start
         ) {
             Box(
                 modifier = Modifier
-                    .size(44.dp)
-                    .clip(CarsilShapes.Small)
-                    .background(Color.Black),   
+                    .size(42.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color(0xFFF1F3F4)),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(icon, null, tint = Color.White, modifier = Modifier.size(20.dp))
+                Icon(icon, null, tint = Color.Black, modifier = Modifier.size(24.dp))
             }
-            Spacer(modifier = Modifier.width(16.dp))
-            Text(title, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = CarsilColors.TextPrimary)
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                text = title,
+                fontWeight = FontWeight.Bold,
+                fontSize = 15.sp,
+                color = Color.Black,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = "Gestionar",
+                fontSize = 11.sp,
+                color = Color.Gray
+            )
         }
     }
 }

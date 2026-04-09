@@ -2,6 +2,7 @@ package com.example.appcarsilauth.ui.components
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -46,14 +47,15 @@ fun CaptchaComponent(
                 .weight(1f)
                 .height(60.dp)
                 .clip(CarsilShapes.Medium)
-                .background(Color(0xFFEEEEEE)) // Gris neutro muy claro
+                .background(Color.White) // Blanco nuclear para máximo contraste
+                .border(1.dp, Color.Black, CarsilShapes.Medium)
                 .clickable { captchaText = generateRandomCode() },
             contentAlignment = Alignment.Center
         ) {
             CaptchaCanvas(captchaText)
         }
 
-        Spacer(Modifier.width(8.dp))
+        Spacer(Modifier.width(  8.dp))
 
         IconButton(
             onClick = { captchaText = generateRandomCode() },
@@ -100,10 +102,12 @@ fun CaptchaCanvas(text: String) {
         drawContext.canvas.nativeCanvas.apply {
             val paint = android.graphics.Paint().apply {
                 color = android.graphics.Color.BLACK
-                textSize = 65f // Reducido para asegurar espacio
+                textSize = 70f // Un poco más grande
                 isFakeBoldText = true
                 isAntiAlias = true
-                letterSpacing = 0.05f
+                strokeWidth = 2f
+                style = android.graphics.Paint.Style.FILL_AND_STROKE // Relleno y borde para grosor extra
+                letterSpacing = 0.1f
             }
             
             // Medir ancho total

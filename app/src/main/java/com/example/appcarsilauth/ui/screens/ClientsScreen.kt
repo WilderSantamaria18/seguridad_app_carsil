@@ -1,45 +1,26 @@
 package com.example.appcarsilauth.ui.screens
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Divider
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.appcarsilauth.data.local.entity.ClienteEntity
 import com.example.appcarsilauth.ui.viewmodel.IntranetViewModel
 
@@ -59,201 +40,185 @@ fun ClientsScreen(
     var celular by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var contacto by remember { mutableStateOf("") }
+    
+    var showAddForm by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         viewModel.loadIntranetData()
     }
 
     Scaffold(
+        containerColor = Color(0xFFF8F9FA),
         topBar = {
             TopAppBar(
-                title = { Text("Clientes", fontWeight = FontWeight.SemiBold) },
+                title = { Text("Gestion de Clientes", fontWeight = FontWeight.Black) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Atras")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = Color.Black)
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color(0xFFF8FAFC)
-                )
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White),
+                actions = {
+                    IconButton(onClick = { showAddForm = !showAddForm }) {
+                        Icon(if (showAddForm) Icons.Default.Close else Icons.Default.Add, null, tint = Color.Black)
+                    }
+                }
             )
         }
     ) { padding ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            item {
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = Color.White)
+        Column(modifier = Modifier.padding(padding)) {
+            // Formulario Expandible para Nuevo Cliente
+            if (showAddForm) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = Color.White,
+                    shadowElevation = 8.dp
                 ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text("Nuevo cliente", style = MaterialTheme.typography.titleMedium)
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        OutlinedTextField(
-                            value = documento,
-                            onValueChange = { documento = it },
-                            label = { Text("Documento") },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        OutlinedTextField(
-                            value = razonSocial,
-                            onValueChange = { razonSocial = it },
-                            label = { Text("Razon social") },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
+                    Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text("Registro de Nuevo Cliente", fontWeight = FontWeight.Bold, color = Color.Black)
+                        
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedTextField(
+                                value = documento,
+                                onValueChange = { documento = it },
+                                label = { Text("Documento / RUC") },
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(12.dp),
+                                singleLine = true
+                            )
+                            OutlinedTextField(
+                                value = razonSocial,
+                                onValueChange = { razonSocial = it },
+                                label = { Text("Razon Social") },
+                                modifier = Modifier.weight(1.5f),
+                                shape = RoundedCornerShape(12.dp),
+                                singleLine = true
+                            )
+                        }
 
                         OutlinedTextField(
                             value = direccion,
                             onValueChange = { direccion = it },
                             label = { Text("Direccion") },
                             modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
                             singleLine = true
                         )
-                        Spacer(modifier = Modifier.height(8.dp))
 
-                        BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-                            val compact = maxWidth < 520.dp
-                            if (compact) {
-                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    OutlinedTextField(
-                                        value = telefono,
-                                        onValueChange = { telefono = it },
-                                        label = { Text("Telefono") },
-                                        modifier = Modifier.fillMaxWidth(),
-                                        singleLine = true
-                                    )
-                                    OutlinedTextField(
-                                        value = celular,
-                                        onValueChange = { celular = it },
-                                        label = { Text("Celular") },
-                                        modifier = Modifier.fillMaxWidth(),
-                                        singleLine = true
-                                    )
-                                }
-                            } else {
-                                Row(
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    OutlinedTextField(
-                                        value = telefono,
-                                        onValueChange = { telefono = it },
-                                        label = { Text("Telefono") },
-                                        modifier = Modifier.weight(1f),
-                                        singleLine = true
-                                    )
-                                    OutlinedTextField(
-                                        value = celular,
-                                        onValueChange = { celular = it },
-                                        label = { Text("Celular") },
-                                        modifier = Modifier.weight(1f),
-                                        singleLine = true
-                                    )
-                                }
-                            }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedTextField(
+                                value = telefono,
+                                onValueChange = { telefono = it },
+                                label = { Text("Telefono") },
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(12.dp),
+                                singleLine = true
+                            )
+                            OutlinedTextField(
+                                value = celular,
+                                onValueChange = { celular = it },
+                                label = { Text("Celular") },
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(12.dp),
+                                singleLine = true
+                            )
                         }
-                        Spacer(modifier = Modifier.height(8.dp))
 
                         OutlinedTextField(
                             value = email,
                             onValueChange = { email = it },
-                            label = { Text("Email") },
+                            label = { Text("Email Corporativo") },
                             modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
                             singleLine = true
                         )
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        OutlinedTextField(
-                            value = contacto,
-                            onValueChange = { contacto = it },
-                            label = { Text("Contacto") },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
 
                         Button(
                             onClick = {
-                                viewModel.registrarCliente(
-                                    documento = documento,
-                                    razonSocial = razonSocial,
-                                    direccion = direccion,
-                                    telefono = telefono,
-                                    celular = celular,
-                                    email = email,
-                                    contacto = contacto
-                                )
-                                documento = ""
-                                razonSocial = ""
-                                direccion = ""
-                                telefono = ""
-                                celular = ""
-                                email = ""
-                                contacto = ""
+                                viewModel.registrarCliente(documento, razonSocial, direccion, telefono, celular, email, contacto)
+                                documento = ""; razonSocial = ""; direccion = ""; telefono = ""; celular = ""; email = ""; contacto = ""
+                                showAddForm = false
                             },
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier.fillMaxWidth().height(50.dp),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color.Black)
                         ) {
-                            Text("Guardar cliente")
-                        }
-
-                        if (!uiMessage.isNullOrBlank()) {
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                text = uiMessage ?: "",
-                                color = Color(0xFF334155),
-                                style = MaterialTheme.typography.bodySmall
-                            )
+                            Text("Guardar Cliente", fontWeight = FontWeight.Bold)
                         }
                     }
                 }
             }
 
-            item {
-                Divider()
-                Spacer(modifier = Modifier.height(4.dp))
-                Text("Listado", style = MaterialTheme.typography.titleMedium)
-            }
+            // Listado con Estilo Corporativo
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                item {
+                    Text(
+                        "Listado de Clientes (${clientes.size})",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Gray,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                }
 
-            items(clientes) { cliente ->
-                ClienteItem(cliente)
+                items(clientes) { cliente ->
+                    ClienteCard(cliente)
+                }
             }
         }
     }
 }
 
 @Composable
-private fun ClienteItem(cliente: ClienteEntity) {
-    Card(colors = CardDefaults.cardColors(containerColor = Color.White)) {
-        Row(modifier = Modifier.padding(14.dp)) {
-            Icon(
-                imageVector = Icons.Default.Person,
-                contentDescription = null,
-                tint = Color(0xFF334155)
-            )
-            Spacer(modifier = Modifier.width(10.dp))
-            Column {
-                Text(cliente.RazonSocial, fontWeight = FontWeight.SemiBold)
-                Text("Doc: ${cliente.Documento}", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
-                if (!cliente.Contacto.isNullOrBlank()) {
-                    Text("Contacto: ${cliente.Contacto}", style = MaterialTheme.typography.bodySmall)
+private fun ClienteCard(cliente: ClienteEntity) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        color = Color.White,
+        border = BorderStroke(1.dp, Color(0xFFEEEEEE)),
+        shadowElevation = 2.dp
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFFF1F3F4)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Default.Person, null, tint = Color.Black, modifier = Modifier.size(20.dp))
                 }
-                if (!cliente.Email.isNullOrBlank()) {
-                    Text("Email: ${cliente.Email}", style = MaterialTheme.typography.bodySmall)
-                }
-                if (!cliente.Telefono.isNullOrBlank()) {
-                    Text("Telefono: ${cliente.Telefono}", style = MaterialTheme.typography.bodySmall)
+                Spacer(modifier = Modifier.width(12.dp))
+                Column {
+                    Text(cliente.RazonSocial, fontWeight = FontWeight.Black, fontSize = 16.sp, color = Color.Black)
+                    Text(cliente.Documento, fontSize = 12.sp, color = Color.Gray)
                 }
             }
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            Divider(color = Color(0xFFF1F3F4))
+            Spacer(modifier = Modifier.height(12.dp))
+
+            InfoRow(Icons.Default.LocationOn, cliente.Direccion ?: "No especificada")
+            if (!cliente.Email.isNullOrBlank()) InfoRow(Icons.Default.Email, cliente.Email)
+            if (!cliente.Telefono.isNullOrBlank()) InfoRow(Icons.Default.Phone, cliente.Telefono)
         }
+    }
+}
+
+@Composable
+private fun InfoRow(icon: ImageVector, text: String) {
+    Row(
+        modifier = Modifier.padding(vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(icon, null, tint = Color.Gray, modifier = Modifier.size(14.dp))
+        Spacer(Modifier.width(8.dp))
+        Text(text, fontSize = 12.sp, color = Color(0xFF455A64))
     }
 }

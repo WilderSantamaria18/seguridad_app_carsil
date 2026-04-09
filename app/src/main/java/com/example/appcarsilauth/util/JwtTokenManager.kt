@@ -7,29 +7,25 @@ import javax.crypto.spec.SecretKeySpec
 import java.nio.charset.StandardCharsets
 
 object JwtTokenManager {
-    // Clave secreta fuerte simulada (en entorno real estaría en BuildConfig protegida)
     private const val SECRET_KEY = "CARS1L_S3CUR1TY_P0L1CY_K3Y_M1L1T4RY_GR4D3_2026"
     
     fun generateToken(email: String, roleId: Int, idUsuario: Int): String {
-        // 1. Header
+        val iat = System.currentTimeMillis()
+        val exp = iat + (2 * 60 * 1000) // 2 Minutos para pruebas (Antes 15)
+        
         val headerJson = JSONObject()
         headerJson.put("alg", "HS256")
         headerJson.put("typ", "JWT")
         val headerBase64 = encodeBase64Url(headerJson.toString())
 
-        // 2. Payload
         val payloadJson = JSONObject()
-        val issueTime = System.currentTimeMillis() / 1000
-        val expTime = issueTime + (60 * 60 * 8) // 8 horas de sesión
-        
         payloadJson.put("sub", idUsuario)
         payloadJson.put("email", email)
         payloadJson.put("roleId", roleId)
-        payloadJson.put("iat", issueTime)
-        payloadJson.put("exp", expTime)
+        payloadJson.put("iat", iat)
+        payloadJson.put("exp", exp)
         val payloadBase64 = encodeBase64Url(payloadJson.toString())
 
-        // 3. Signature
         val signatureData = "$headerBase64.$payloadBase64"
         val signature = calculateHmacSha256(signatureData, SECRET_KEY)
         val signatureBase64 = encodeBase64UrlBytes(signature)
@@ -38,7 +34,7 @@ object JwtTokenManager {
     }
 
     fun isTokenValid(token: String): Boolean {
-        try {
+        return try {
             val parts = token.split(".")
             if (parts.size != 3) return false
             
@@ -46,16 +42,26 @@ object JwtTokenManager {
             val expectedSignature = encodeBase64UrlBytes(calculateHmacSha256(signatureData, SECRET_KEY))
             
             if (parts[2] != expectedSignature) return false
+
+            val payloadJson = String(Base64.decode(parts[1], Base64.URL_SAFE))
+            val json = JSONObject(payloadJson)
+            val exp = json.getLong("exp")
             
-            // Verificar expiración
-            val payloadString = String(Base64.decode(parts[1], Base64.URL_SAFE), StandardCharsets.UTF_8)
-            val payloadJson = JSONObject(payloadString)
-            val exp = payloadJson.getLong("exp")
-            val currentTime = System.currentTimeMillis() / 1000
-            
-            return currentTime < exp
+            System.currentTimeMillis() < exp
         } catch (e: Exception) {
-            return false
+            false
+        }
+    }
+    
+    fun getRemainingTimeMs(token: String): Long {
+        return try {
+            val parts = token.split(".")
+            val payloadJson = String(Base64.decode(parts[1], Base64.URL_SAFE))
+            val json = JSONObject(payloadJson)
+            val exp = json.getLong("exp")
+            (exp - System.currentTimeMillis()).coerceAtLeast(0)
+        } catch (e: Exception) {
+            0L
         }
     }
 

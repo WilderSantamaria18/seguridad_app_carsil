@@ -47,6 +47,12 @@ class AuthViewModel(
     var isCaptchaModalVisible by mutableStateOf(false)
     var captchaAttemptsInModal by mutableStateOf(0)
 
+    // Flujo de pasos (BBVA Style)
+    var loginStep by mutableStateOf(1) // 1: Email, 2: Pass/Biometry
+    var identifiedUserName by mutableStateOf("")
+    var identifiedUserId by mutableStateOf(-1)
+    var identifiedRoleId by mutableStateOf(-1)
+
     fun onEmailChange(newValue: String) { email = newValue.trim().lowercase(Locale.ROOT) }
     fun onPinChange(newValue: String) { pin = newValue }
     fun onCaptchaInputChange(newValue: String) {
@@ -76,6 +82,40 @@ class AuthViewModel(
         userCaptchaInput = ""
         captchaAttemptsInModal = 0
         isCaptchaVerified = false
+        loginStep = 1
+        identifiedUserName = ""
+    }
+
+    fun backToStep1() {
+        loginStep = 1
+        pin = ""
+    }
+
+    // PASO 1: Identificar Usuario por Email
+    fun identifyUser() {
+        val normalizedEmail = email.trim().lowercase(Locale.ROOT)
+        if (normalizedEmail.isBlank()) {
+            _authState.value = AuthState.Error("Ingresa tu correo.")
+            return
+        }
+
+        viewModelScope.launch {
+            _authState.value = AuthState.Loading
+            try {
+                val usuario = intranetDao.getUserByEmail(normalizedEmail)
+                if (usuario != null) {
+                    identifiedUserName = "${usuario.Nombres} ${usuario.Apellidos}"
+                    identifiedUserId = usuario.IdUsuario
+                    identifiedRoleId = usuario.IdRol
+                    _authState.value = AuthState.Idle
+                    loginStep = 2 // Pasar al siguiente paso
+                } else {
+                    _authState.value = AuthState.Error("Usuario no registrado.")
+                }
+            } catch (e: Exception) {
+                _authState.value = AuthState.Error("Error: ${e.localizedMessage}")
+            }
+        }
     }
 
     fun checkInitialLockout(userId: String) {
@@ -175,6 +215,47 @@ class AuthViewModel(
                 userCaptchaInput = ""
                 _authState.value = AuthState.Error("Código incorrecto. Intento $captchaAttemptsInModal de 5.")
                 // Generar nuevo captcha automáticamente? O dejar que use el botón de refrescar
+            }
+        }
+    }
+
+    fun handleBiometricSuccess(storedEmail: String?) {
+        val targetEmail = storedEmail ?: email
+        if (targetEmail.isNotBlank()) {
+            loginByEmail(targetEmail)
+        } else {
+            _authState.value = AuthState.Error("No hay usuario enlazado. Inicia sesión normalmente primero.")
+        }
+    }
+
+    private fun loginByEmail(targetEmail: String) {
+        viewModelScope.launch {
+            _authState.value = AuthState.Loading
+            try {
+                val usuario = intranetDao.getUserByEmail(targetEmail)
+                if (usuario != null) {
+                    validateLockoutUseCase.onSuccessfulLogin(targetEmail)
+                    val jwtToken = JwtTokenManager.generateToken(usuario.Correo, usuario.IdRol, usuario.IdUsuario)
+                    _authState.value = AuthState.SuccessAnimation
+                    registerAuditLog(usuario.Correo, "LOGIN_BIOMETRIC_SUCCESS", "AUTH_MODULE")
+                    delay(4000)
+                    _authState.value = AuthState.Success(tokenJwt = jwtToken, email = usuario.Correo, roleId = usuario.IdRol)
+                } else {
+                    _authState.value = AuthState.Error("Usuario no encontrado.")
+                }
+            } catch (e: Exception) {
+                _authState.value = AuthState.Error("Error biométrico: ${e.localizedMessage}")
+            }
+        }
+    }
+
+    fun refreshToken() {
+        val currentState = _authState.value
+        if (currentState is AuthState.Success) {
+            viewModelScope.launch {
+                val newToken = JwtTokenManager.generateToken(currentState.email, currentState.roleId, 1 /* userId simulado o extraido */)
+                _authState.value = currentState.copy(tokenJwt = newToken)
+                registerAuditLog(currentState.email, "TOKEN_REFRESH", "AUTH_MODULE")
             }
         }
     }

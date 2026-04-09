@@ -1,45 +1,26 @@
 package com.example.appcarsilauth.ui.screens
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Inventory2
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Divider
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.appcarsilauth.data.local.entity.ProductoEntity
 import com.example.appcarsilauth.ui.viewmodel.IntranetViewModel
 
@@ -61,270 +42,215 @@ fun ProductsScreen(
     var precio by remember { mutableStateOf("") }
     var stock by remember { mutableStateOf("") }
     var stockMinimo by remember { mutableStateOf("") }
+    
+    var showAddForm by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         viewModel.loadIntranetData()
     }
 
     Scaffold(
+        containerColor = Color(0xFFF8F9FA),
         topBar = {
             TopAppBar(
-                title = { Text("Productos", fontWeight = FontWeight.SemiBold) },
+                title = { Text("Inventario de Productos", fontWeight = FontWeight.Black) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Atras")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = Color.Black)
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color(0xFFF8FAFC)
-                )
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White),
+                actions = {
+                    IconButton(onClick = { showAddForm = !showAddForm }) {
+                        Icon(if (showAddForm) Icons.Default.Close else Icons.Default.AddBox, null, tint = Color.Black)
+                    }
+                }
             )
         }
     ) { padding ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            item {
-                Card(colors = CardDefaults.cardColors(containerColor = Color.White)) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text("Nuevo producto", style = MaterialTheme.typography.titleMedium)
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        OutlinedTextField(
-                            value = codigo,
-                            onValueChange = { codigo = it },
-                            label = { Text("Codigo") },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        OutlinedTextField(
-                            value = nombre,
-                            onValueChange = { nombre = it },
-                            label = { Text("Nombre") },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
+        Column(modifier = Modifier.padding(padding)) {
+            if (showAddForm) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = Color.White,
+                    shadowElevation = 8.dp
+                ) {
+                    Column(
+                        modifier = Modifier.padding(20.dp).verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Text("Registrar Nuevo Activo/Producto", fontWeight = FontWeight.Bold)
+                        
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedTextField(
+                                value = codigo,
+                                onValueChange = { codigo = it },
+                                label = { Text("Codigo SKU") },
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(12.dp)
+                            )
+                            OutlinedTextField(
+                                value = nombre,
+                                onValueChange = { nombre = it },
+                                label = { Text("Nombre") },
+                                modifier = Modifier.weight(1.5f),
+                                shape = RoundedCornerShape(12.dp)
+                            )
+                        }
 
                         OutlinedTextField(
                             value = descripcion,
                             onValueChange = { descripcion = it },
-                            label = { Text("Descripcion") },
+                            label = { Text("Descripcion Tecnica") },
                             modifier = Modifier.fillMaxWidth(),
-                            singleLine = true
+                            shape = RoundedCornerShape(12.dp)
                         )
-                        Spacer(modifier = Modifier.height(8.dp))
 
-                        BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-                            val compact = maxWidth < 520.dp
-                            if (compact) {
-                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    OutlinedTextField(
-                                        value = marca,
-                                        onValueChange = { marca = it },
-                                        label = { Text("Marca") },
-                                        modifier = Modifier.fillMaxWidth(),
-                                        singleLine = true
-                                    )
-                                    OutlinedTextField(
-                                        value = modelo,
-                                        onValueChange = { modelo = it },
-                                        label = { Text("Modelo") },
-                                        modifier = Modifier.fillMaxWidth(),
-                                        singleLine = true
-                                    )
-                                }
-                            } else {
-                                Row(
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    OutlinedTextField(
-                                        value = marca,
-                                        onValueChange = { marca = it },
-                                        label = { Text("Marca") },
-                                        modifier = Modifier.weight(1f),
-                                        singleLine = true
-                                    )
-                                    OutlinedTextField(
-                                        value = modelo,
-                                        onValueChange = { modelo = it },
-                                        label = { Text("Modelo") },
-                                        modifier = Modifier.weight(1f),
-                                        singleLine = true
-                                    )
-                                }
-                            }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedTextField(
+                                value = marca,
+                                onValueChange = { marca = it },
+                                label = { Text("Marca") },
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(12.dp)
+                            )
+                            OutlinedTextField(
+                                value = precio,
+                                onValueChange = { precio = it },
+                                label = { Text("Precio Venta") },
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(12.dp)
+                            )
                         }
-                        Spacer(modifier = Modifier.height(8.dp))
 
-                        BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-                            val compact = maxWidth < 520.dp
-                            if (compact) {
-                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    OutlinedTextField(
-                                        value = tipo,
-                                        onValueChange = { tipo = it },
-                                        label = { Text("Tipo") },
-                                        modifier = Modifier.fillMaxWidth(),
-                                        singleLine = true
-                                    )
-                                    OutlinedTextField(
-                                        value = precio,
-                                        onValueChange = { precio = it },
-                                        label = { Text("Precio") },
-                                        modifier = Modifier.fillMaxWidth(),
-                                        singleLine = true
-                                    )
-                                }
-                            } else {
-                                Row(
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    OutlinedTextField(
-                                        value = tipo,
-                                        onValueChange = { tipo = it },
-                                        label = { Text("Tipo") },
-                                        modifier = Modifier.weight(1f),
-                                        singleLine = true
-                                    )
-                                    OutlinedTextField(
-                                        value = precio,
-                                        onValueChange = { precio = it },
-                                        label = { Text("Precio") },
-                                        modifier = Modifier.weight(1f),
-                                        singleLine = true
-                                    )
-                                }
-                            }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedTextField(
+                                value = stock,
+                                onValueChange = { stock = it },
+                                label = { Text("Stock inicial") },
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(12.dp)
+                            )
+                            OutlinedTextField(
+                                value = stockMinimo,
+                                onValueChange = { stockMinimo = it },
+                                label = { Text("Stock Critico") },
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(12.dp)
+                            )
                         }
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-                            val compact = maxWidth < 520.dp
-                            if (compact) {
-                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    OutlinedTextField(
-                                        value = stock,
-                                        onValueChange = { stock = it },
-                                        label = { Text("Stock") },
-                                        modifier = Modifier.fillMaxWidth(),
-                                        singleLine = true
-                                    )
-                                    OutlinedTextField(
-                                        value = stockMinimo,
-                                        onValueChange = { stockMinimo = it },
-                                        label = { Text("Stock minimo") },
-                                        modifier = Modifier.fillMaxWidth(),
-                                        singleLine = true
-                                    )
-                                }
-                            } else {
-                                Row(
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    OutlinedTextField(
-                                        value = stock,
-                                        onValueChange = { stock = it },
-                                        label = { Text("Stock") },
-                                        modifier = Modifier.weight(1f),
-                                        singleLine = true
-                                    )
-                                    OutlinedTextField(
-                                        value = stockMinimo,
-                                        onValueChange = { stockMinimo = it },
-                                        label = { Text("Stock minimo") },
-                                        modifier = Modifier.weight(1f),
-                                        singleLine = true
-                                    )
-                                }
-                            }
-                        }
-                        Spacer(modifier = Modifier.height(12.dp))
 
                         Button(
                             onClick = {
-                                viewModel.registrarProducto(
-                                    codigo = codigo,
-                                    nombre = nombre,
-                                    descripcion = descripcion,
-                                    marca = marca,
-                                    modelo = modelo,
-                                    tipo = tipo,
-                                    precioUnitario = precio,
-                                    stock = stock,
-                                    stockMinimo = stockMinimo
-                                )
-                                codigo = ""
-                                nombre = ""
-                                descripcion = ""
-                                marca = ""
-                                modelo = ""
-                                tipo = ""
-                                precio = ""
-                                stock = ""
-                                stockMinimo = ""
+                                viewModel.registrarProducto(codigo, nombre, descripcion, marca, modelo, tipo, precio, stock, stockMinimo)
+                                codigo = ""; nombre = ""; descripcion = ""; marca = ""; modelo = ""; tipo = ""; precio = ""; stock = ""; stockMinimo = ""
+                                showAddForm = false
                             },
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier.fillMaxWidth().height(50.dp),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color.Black)
                         ) {
-                            Text("Guardar producto")
-                        }
-
-                        if (!uiMessage.isNullOrBlank()) {
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                text = uiMessage ?: "",
-                                color = Color(0xFF334155),
-                                style = MaterialTheme.typography.bodySmall
-                            )
+                            Text("Confirmar Ingreso", fontWeight = FontWeight.Bold)
                         }
                     }
                 }
             }
 
-            item {
-                Divider()
-                Spacer(modifier = Modifier.height(4.dp))
-                Text("Listado", style = MaterialTheme.typography.titleMedium)
-            }
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                item {
+                    Text(
+                        "Catálogo de Almacén (${productos.size})",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Gray,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                }
 
-            items(productos) { producto ->
-                ProductoItem(producto)
+                items(productos) { producto ->
+                    ProductoCard(producto)
+                }
             }
         }
     }
 }
 
 @Composable
-private fun ProductoItem(producto: ProductoEntity) {
-    Card(colors = CardDefaults.cardColors(containerColor = Color.White)) {
-        Row(modifier = Modifier.padding(14.dp)) {
-            Icon(
-                imageVector = Icons.Default.Inventory2,
-                contentDescription = null,
-                tint = Color(0xFF334155)
-            )
-            Spacer(modifier = Modifier.width(10.dp))
-            Column {
-                Text("${producto.Codigo} - ${producto.Nombre}", fontWeight = FontWeight.SemiBold)
-                Text("S/ ${"%.2f".format(producto.PrecioUnitario)}", style = MaterialTheme.typography.bodySmall)
+private fun ProductoCard(producto: ProductoEntity) {
+    val isLowStock = producto.Stock <= (producto.StockMinimo)
+
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        color = Color.White,
+        border = BorderStroke(1.dp, Color(0xFFEEEEEE)),
+        shadowElevation = 2.dp
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(if (isLowStock) Color(0xFFFFEBEE) else Color(0xFFE8F5E9)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Default.Inventory2, 
+                            null, 
+                            tint = if (isLowStock) Color(0xFFD32F2F) else Color(0xFF2E7D32),
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column {
+                        Text(producto.Nombre, fontWeight = FontWeight.Black, fontSize = 16.sp, color = Color.Black)
+                        Text("SKU: ${producto.Codigo}", fontSize = 12.sp, color = Color.Gray)
+                    }
+                }
+                
                 Text(
-                    "Stock: ${producto.Stock} | Min: ${producto.StockMinimo}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color.Gray
+                    "S/ ${"%.2f".format(producto.PrecioUnitario)}",
+                    fontWeight = FontWeight.Black,
+                    fontSize = 18.sp,
+                    color = Color.Black
                 )
-                if (!producto.Marca.isNullOrBlank() || !producto.Modelo.isNullOrBlank()) {
+            }
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            Divider(color = Color(0xFFF1F3F4))
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Factory, null, tint = Color.Gray, modifier = Modifier.size(14.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text(producto.Marca ?: "Generico", fontSize = 12.sp, color = Color.Gray)
+                }
+                
+                Surface(
+                    color = if (isLowStock) Color(0xFFFFCDD2) else Color(0xFFC8E6C9),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
                     Text(
-                        "${producto.Marca ?: ""} ${producto.Modelo ?: ""}".trim(),
-                        style = MaterialTheme.typography.bodySmall
+                        text = "Stock: ${producto.Stock}",
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (isLowStock) Color(0xFFB71C1C) else Color(0xFF1B5E20)
                     )
                 }
             }
