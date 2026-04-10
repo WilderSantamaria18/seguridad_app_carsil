@@ -26,6 +26,9 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+import com.example.appcarsilauth.ui.components.CarsilColors
+import com.example.appcarsilauth.ui.components.CarsilShapes
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AttendanceScreen(
@@ -34,7 +37,7 @@ fun AttendanceScreen(
     idUsuario: Int,
     onLogout: () -> Unit
 ) {
-    val asistenciaState by viewModel.asistenciaState.collectAsState()
+    val asistenciaMap by viewModel.asistenciaState.collectAsState()
     
     var currentTime by remember { mutableStateOf(SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())) }
     var seconds by remember { mutableStateOf(SimpleDateFormat("ss", Locale.getDefault()).format(Date())) }
@@ -50,16 +53,19 @@ fun AttendanceScreen(
     }
 
     Scaffold(
-        containerColor = Color(0xFFF8F9FA),
+        containerColor = CarsilColors.Background,
         topBar = {
             TopAppBar(
-                title = { Text("Asistencia CARSIL", fontWeight = FontWeight.Black) },
+                title = { Text("Asistencia", fontWeight = FontWeight.Bold) },
                 actions = {
                     IconButton(onClick = onLogout) {
-                        Icon(Icons.AutoMirrored.Filled.Logout, null, tint = Color.Red)
+                        Icon(Icons.AutoMirrored.Filled.Logout, null, tint = Color.Black)
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = CarsilColors.Background,
+                    titleContentColor = CarsilColors.TextPrimary
+                )
             )
         }
     ) { padding ->
@@ -67,98 +73,149 @@ fun AttendanceScreen(
             modifier = Modifier
                 .padding(padding)
                 .fillMaxSize()
-                .padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.SpaceBetween
+                .padding(horizontal = 24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // RELOJ DIGITAL PREMIUM
-            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(top = 32.dp)) {
-                Text(currentDate.replaceFirstChar { it.uppercase() }, color = Color.Gray, fontSize = 16.sp, fontWeight = FontWeight.Medium)
-                Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(32.dp))
+
+            // RELOJ DIGITAL MINIMALISTA
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    text = currentDate.replaceFirstChar { it.uppercase() },
+                    color = CarsilColors.TextSecondary,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium
+                )
+                Spacer(modifier = Modifier.height(12.dp))
                 Row(verticalAlignment = Alignment.Bottom) {
                     Text(
                         text = currentTime,
-                        color = Color.Black,
-                        fontSize = 80.sp,
+                        color = CarsilColors.TextPrimary,
+                        fontSize = 72.sp,
                         fontWeight = FontWeight.Black,
                         letterSpacing = (-2).sp
                     )
                     Text(
-                        text = seconds,
-                        color = Color.Gray,
+                        text = ":$seconds",
+                        color = CarsilColors.Gray400,
                         fontSize = 24.sp,
-                        modifier = Modifier.padding(bottom = 16.dp, start = 4.dp)
+                        modifier = Modifier.padding(bottom = 14.dp, start = 2.dp),
+                        fontWeight = FontWeight.Bold
                     )
                 }
-                Surface(color = Color(0xFFF1F3F4), shape = RoundedCornerShape(12.dp)) {
-                    Text(email, modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp), fontSize = 12.sp, color = Color.Gray)
-                }
             }
 
-            // BOTON DE MARCACION
-            val asistencia = asistenciaState
-            
-            Box(contentAlignment = Alignment.Center, modifier = Modifier.weight(1f)) {
-                if (asistencia == null) {
-                    Button(
-                        onClick = { viewModel.registrarAsistencia(idUsuario) },
-                        modifier = Modifier
-                            .size(220.dp)
-                            .shadow(20.dp, CircleShape),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color.Black),
-                        shape = CircleShape
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(Icons.Default.WatchLater, null, modifier = Modifier.size(32.dp))
-                            Spacer(Modifier.height(8.dp))
-                            Text("MARCAR\nINGRESO", textAlign = TextAlign.Center, fontWeight = FontWeight.Black, fontSize = 20.sp)
+            Spacer(modifier = Modifier.height(48.dp))
+
+            // ESTADO DE ASISTENCIA
+            val asistencia = asistenciaMap
+            val horaEntrada = asistencia?.get("HoraEntrada") as? String
+            val horaSalida = asistencia?.get("HoraSalida") as? String
+
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = CarsilShapes.Medium,
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                border = BorderStroke(1.dp, CarsilColors.Stroke)
+            ) {
+                Column(modifier = Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = when {
+                            asistencia == null -> "SIN REGISTRO"
+                            horaSalida == null -> "EN JORNADA"
+                            else -> "JORNADA FINALIZADA"
+                        },
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (asistencia != null && horaSalida == null) CarsilColors.Success else CarsilColors.TextSecondary,
+                        letterSpacing = 1.sp
+                    )
+
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    if (asistencia != null) {
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceAround) {
+                            TimeRecord("Entrada", horaEntrada ?: "--:--", Icons.Default.WatchLater)
+                            TimeRecord("Salida", horaSalida ?: "--:--", Icons.AutoMirrored.Filled.Logout)
                         }
+                    } else {
+                        Text(
+                            "Aún no has registrado tu ingreso el día de hoy.",
+                            textAlign = TextAlign.Center,
+                            fontSize = 14.sp,
+                            color = CarsilColors.TextSecondary,
+                            modifier = Modifier.padding(horizontal = 16.dp)
+                        )
                     }
-                } else if (asistencia.HoraSalida == null) {
-                    Button(
-                        onClick = { viewModel.registrarAsistencia(idUsuario) },
-                        modifier = Modifier
-                            .size(220.dp)
-                            .shadow(20.dp, CircleShape),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD32F2F)),
-                        shape = CircleShape
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(Icons.AutoMirrored.Filled.Logout, null, modifier = Modifier.size(32.dp))
-                            Spacer(Modifier.height(8.dp))
-                            Text("MARCAR\nSALIDA", textAlign = TextAlign.Center, fontWeight = FontWeight.Black, fontSize = 20.sp)
-                        }
-                    }
-                } else {
-                    Surface(
-                        modifier = Modifier.fillMaxWidth().shadow(4.dp, RoundedCornerShape(24.dp)),
-                        shape = RoundedCornerShape(24.dp),
-                        color = Color.White,
-                        border = BorderStroke(1.dp, Color(0xFFE8F5E9))
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(32.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
+
+                    Spacer(modifier = Modifier.height(32.dp))
+
+                    if (horaSalida == null) {
+                        Button(
+                            onClick = { viewModel.registrarAsistencia(idUsuario) },
+                            modifier = Modifier.fillMaxWidth().height(56.dp),
+                            shape = CarsilShapes.Small,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (asistencia == null) Color.Black else Color(0xFFD32F2F)
+                            )
                         ) {
-                            Icon(Icons.Default.CheckCircle, null, tint = Color(0xFF00C853), modifier = Modifier.size(64.dp))
-                            Spacer(Modifier.height(16.dp))
-                            Text("Jornada Finalizada", fontWeight = FontWeight.Black, fontSize = 20.sp)
-                            Spacer(Modifier.height(8.dp))
-                            Text("Ingreso: ${asistencia.HoraEntrada}", color = Color.Gray)
-                            Text("Salida: ${asistencia.HoraSalida}", color = Color.Gray)
+                            Icon(
+                                if (asistencia == null) Icons.Default.WatchLater else Icons.AutoMirrored.Filled.Logout, 
+                                null, 
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text(
+                                if (asistencia == null) "Marcar Ingreso" else "Marcar Salida",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 16.sp
+                            )
+                        }
+                    } else {
+                        Surface(
+                            modifier = Modifier.fillMaxWidth().height(56.dp),
+                            shape = CarsilShapes.Small,
+                            color = Color(0xFFF1F3F4)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.CheckCircle, null, tint = CarsilColors.Success, modifier = Modifier.size(20.dp))
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("Registro completado", color = CarsilColors.Success, fontWeight = FontWeight.Bold)
+                                }
+                            }
                         }
                     }
                 }
             }
 
-            // FOOTER INFO
-            Text(
-                "Ubicacion verificada vía GPS para registro de asistencia.",
-                textAlign = TextAlign.Center,
-                fontSize = 11.sp,
-                color = Color.LightGray,
-                modifier = Modifier.padding(bottom = 16.dp)
-            )
+            Spacer(modifier = Modifier.weight(1f))
+
+            // INFO DE SEGURIDAD
+            Surface(
+                color = Color(0xFFEEEEEE),
+                shape = CarsilShapes.Small,
+                modifier = Modifier.padding(bottom = 32.dp)
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Default.CheckCircle, null, tint = CarsilColors.Success, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Ubicación verificada vía GPS", fontSize = 11.sp, color = CarsilColors.TextSecondary)
+                }
+            }
         }
+    }
+}
+
+@Composable
+fun TimeRecord(label: String, time: String, icon: ImageVector) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Icon(icon, null, modifier = Modifier.size(20.dp), tint = CarsilColors.Gray400)
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(label, fontSize = 11.sp, color = CarsilColors.TextSecondary)
+        Text(time, fontSize = 18.sp, fontWeight = FontWeight.Black, color = CarsilColors.TextPrimary)
     }
 }
