@@ -21,23 +21,24 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-// Colores del Sistema según el diseño HTML
+// Colores del Sistema según el diseño SGE CARSIL (Flat & Minimalist)
 object CarsilColors {
-    val Primary = Color(0xFF000000) // Black
-    val Background = Color(0xFFF8F9FA) // Light Gray Bg
-    val Surface = Color(0xFFFFFFFF) // White
-    val TextPrimary = Color(0xFF000000)
-    val TextSecondary = Color(0xFF6C757D)
-    val Stroke = Color(0xFFE9ECEF)
-    val Accent = Color(0xFF000000)
-    val Navy = Color(0xFF000000)
+    val Primary = Color(0xFF3B49DF) // Azul corporativo
+    val PrimaryDark = Color(0xFF2D38B0)
+    val PrimaryLight = Color(0xFFEEF0FD)
+    val Background = Color(0xFFF7F7F8) // Fondo general
+    val Surface = Color(0xFFFFFFFF) // Blanco sólido
+    val TextPrimary = Color(0xFF1A1A2E) // Negro intenso
+    val TextSecondary = Color(0xFF6B7280) // Gris etiquetas
+    val Stroke = Color(0xFFE5E5E5) // Borde fino
     val Gray400 = Color(0xFFADB5BD)
-    val Success = Color(0xFF198754)
-    val Warning = Color(0xFFFDC105)
+    val Success = Color(0xFF10B981)
+    val Warning = Color(0xFFF59E0B)
+    val Danger = Color(0xFFEF4444)
 }
 
 object CarsilShapes {
     val Full = RoundedCornerShape(100.dp)
-    val Medium = RoundedCornerShape(16.dp)
-    val Small = RoundedCornerShape(12.dp)
+    val Medium = RoundedCornerShape(12.dp)
+    val Small = RoundedCornerShape(8.dp) // Según guía de diseño
 }

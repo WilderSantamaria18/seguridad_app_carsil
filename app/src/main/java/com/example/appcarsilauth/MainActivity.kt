@@ -135,7 +135,7 @@ class MainActivity : FragmentActivity() {
                         }
                     }
                     is AuthState.Idle, is AuthState.Error, is AuthState.LockedOut -> {
-                        if (currentScreen != "PROFORMA" && currentScreen != "CLIENTS" && currentScreen != "PRODUCTS" && currentScreen != "PROFILE") {
+                        if (currentScreen != "PROFORMA" && currentScreen != "CLIENTS" && currentScreen != "PRODUCTS" && currentScreen != "PROFILE" && currentScreen != "CHANGE_PASSWORD") {
                             currentScreen = "LOGIN"
                         }
                     }
@@ -217,9 +217,7 @@ class MainActivity : FragmentActivity() {
                             isBiometricEnrolled = isBiometricEnrolled,
                             isBiometricAvailable = canUseBiometric,
                             userId = userId,
-                            onChangePassword = { current, new, onRes ->
-                                authViewModel.changePassword(userId, current, new, onRes)
-                            },
+                            onGoToChangePassword = { currentScreen = "CHANGE_PASSWORD" },
                             onEnrollBiometric = {
                                 // LOGICA DE VALIDACION DE HUELLA EXISTENTE
                                 if (biometricStorage.isBiometricEnrolled() && !biometricStorage.isEnrolledFor(userEmail)) {
@@ -245,6 +243,19 @@ class MainActivity : FragmentActivity() {
                                 Toast.makeText(this@MainActivity, "Huella desactivada", Toast.LENGTH_SHORT).show()
                             },
                             onBack = { currentScreen = "DASHBOARD" }
+                        )
+                        "CHANGE_PASSWORD" -> ChangePasswordScreen(
+                            userId = userId,
+                            onChangePassword = { current, new, onRes ->
+                                authViewModel.changePassword(userId, current, new, onRes)
+                            },
+                            onBack = { currentScreen = "PROFILE" },
+                            onSuccess = {
+                                authViewModel.logout()
+                                intranetViewModel.clearSessionState()
+                                currentScreen = "LOGIN"
+                                Toast.makeText(this@MainActivity, "Contraseña actualizada. Inicie sesión nuevamente.", Toast.LENGTH_LONG).show()
+                            }
                         )
                         "CLIENTS" -> ClientsScreen(viewModel = intranetViewModel, onBack = { currentScreen = "DASHBOARD" })
                         "PRODUCTS" -> ProductsScreen(viewModel = intranetViewModel, onBack = { currentScreen = "DASHBOARD" })
