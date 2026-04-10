@@ -108,7 +108,20 @@ class IntranetViewModel(private val intranetDao: IntranetDao) : ViewModel() {
                 return@launch
             }
 
-            val nextId = intranetDao.getMaxClienteId() + 1
+            // REGISTRAR EN NUBE (RAILWAY)
+            val clientMap = mapOf(
+                "Documento" to doc,
+                "RazonSocial" to razon,
+                "Direccion" to direccion.trim(),
+                "Telefono" to telefono.trim(),
+                "Celular" to celular.trim(),
+                "Email" to email.trim(),
+                "Contacto" to contacto.trim()
+            )
+            val remoteId = RailwayDatabase.insertClient(clientMap)
+
+            // RESPALDO EN LOCAL
+            val nextId = if (remoteId > 0) remoteId else (intranetDao.getMaxClienteId() + 1)
             intranetDao.insertCliente(
                 ClienteEntity(
                     IdCliente = nextId,
@@ -123,7 +136,7 @@ class IntranetViewModel(private val intranetDao: IntranetDao) : ViewModel() {
                 )
             )
 
-            _uiMessage.value = "Cliente registrado correctamente."
+            _uiMessage.value = if (remoteId > 0) "Cliente registrado en la nube correctamente." else "Cliente registrado localmente (Falla en nube)."
             loadIntranetData()
         }
     }
@@ -151,7 +164,22 @@ class IntranetViewModel(private val intranetDao: IntranetDao) : ViewModel() {
                 return@launch
             }
 
-            val nextId = intranetDao.getMaxProductoId() + 1
+            // REGISTRAR EN NUBE (RAILWAY)
+            val prodMap = mapOf(
+                "Codigo" to cod,
+                "Nombre" to nom,
+                "Descripcion" to descripcion.trim(),
+                "Marca" to marca.trim(),
+                "Modelo" to modelo.trim(),
+                "Tipo" to tipo.trim(),
+                "PrecioUnitario" to precio,
+                "Stock" to stockActual,
+                "StockMinimo" to stockMin
+            )
+            val remoteId = RailwayDatabase.insertProduct(prodMap)
+
+            // RESPALDO EN LOCAL
+            val nextId = if (remoteId > 0) remoteId else (intranetDao.getMaxProductoId() + 1)
             intranetDao.insertProducto(
                 ProductoEntity(
                     IdProducto = nextId,
@@ -169,95 +197,148 @@ class IntranetViewModel(private val intranetDao: IntranetDao) : ViewModel() {
                 )
             )
 
-            _uiMessage.value = "Producto registrado correctamente."
+            _uiMessage.value = if (remoteId > 0) "Producto sincronizado en Railway." else "Producto guardado local (Offline)."
             loadIntranetData()
         }
     }
 
-    // CARSIL-POL-INT: Precisión Financiera y Control de Inventario
+    // CARSIL-POL-INT: Precisión Financiera y Control de Inventario Sincronizado
     fun generarProforma(idUsuario: Int, idCliente: Int, idProducto: Int, cantidad: Int) {
         viewModelScope.launch {
-            val producto = intranetDao.getAllProductos().find { it.IdProducto == idProducto }
-            if (producto != null) {
-                if (producto.Stock >= cantidad) {
-                    val subtotal = producto.PrecioUnitario * cantidad
-                    val totalIgv = subtotal * 0.18
-                    val total = subtotal + totalIgv
-                    val fechaEmision = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
-                    
-                    val result = intranetDao.updateStockReduction(idProducto, cantidad)
-                    if (result > 0) {
-                        val newProforma = ProformaEntity(
-                            Codigo = "PRO-${System.currentTimeMillis()}",
-                            IdUsuario = idUsuario,
-                            IdCliente = idCliente,
-                            IdEmpresa = 1,
-                            FechaEmision = fechaEmision,
-                            Referencia = "Proforma desde app movil",
-                            ValidezOferta = 10,
-                            TiempoEntrega = "5 dias habiles",
-                            LugarEntrega = "Lima",
-                            Garantia = "12 meses",
-                            FormaPago = "Contado",
-                            PorcentajeIGV = 18.0,
-                            SubTotal = subtotal,
-                            TotalIGV = totalIgv,
-                            Total = total,
-                            Estado = "PENDIENTE"
-                        )
-                        val proformaId = intranetDao.insertProforma(newProforma)
+            val producto = _productos.value.find { it.IdProducto == idProducto } ?: return@launch
+            
+            if (producto.Stock >= cantidad) {
+                val subtotal = producto.PrecioUnitario * cantidad
+                val totalIgv = subtotal * 0.18
+                val total = subtotal + totalIgv
+                val fechaEmision = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+                val codigoProf = "PRO-${System.currentTimeMillis()}"
 
-                        intranetDao.insertDetalleProforma(
-                            DetalleProformaEntity(
-                                IdProforma = proformaId.toInt(),
-                                IdProducto = idProducto,
-                                Cantidad = cantidad.toDouble(),
-                                PrecioUnitario = producto.PrecioUnitario,
-                                Total = subtotal,
-                                DescripcionAdicional = producto.Descripcion
-                            )
-                        )
-                        
-                        // Obtenemos la proforma con su ID generado para el PDF
-                        _lastProforma.value = newProforma.copy(IdProforma = proformaId.toInt())
-                        _proformaGenerada.value = true
-                        loadIntranetData() 
-                    }
-                } else {
-                    // Aquí se podría emitir un error de stock insuficiente
+                // 1. REGISTRAR PROFORMA EN RAILWAY
+                val profMap = mapOf(
+                    "Codigo" to codigoProf,
+                    "IdUsuario" to idUsuario,
+                    "IdCliente" to idCliente,
+                    "FechaEmision" to fechaEmision,
+                    "Referencia" to "App Movil Railway",
+                    "SubTotal" to subtotal,
+                    "TotalIGV" to totalIgv,
+                    "Total" to total
+                )
+                val remoteId = RailwayDatabase.insertProforma(profMap)
+
+                if (remoteId > 0) {
+                    // 2. REGISTRAR DETALLE EN RAILWAY
+                    val detMap = mapOf(
+                        "IdProforma" to remoteId,
+                        "IdProducto" to idProducto,
+                        "Cantidad" to cantidad.toDouble(),
+                        "PrecioUnitario" to producto.PrecioUnitario,
+                        "Total" to subtotal,
+                        "Descripcion" to producto.Nombre
+                    )
+                    RailwayDatabase.insertProformaDetail(detMap)
+                    
+                    // 3. ACTUALIZAR STOCK EN RAILWAY
+                    RailwayDatabase.updateProductStock(idProducto, cantidad)
                 }
+
+                // 4. RESPALDO LOCAL (OPCIONAL/HISTORICO)
+                val resultLocal = intranetDao.updateStockReduction(idProducto, cantidad)
+                if (resultLocal > 0) {
+                    val newProforma = ProformaEntity(
+                        Codigo = codigoProf,
+                        IdUsuario = idUsuario,
+                        IdCliente = idCliente,
+                        IdEmpresa = 1,
+                        FechaEmision = fechaEmision,
+                        Referencia = "Copia local sincronizada",
+                        ValidezOferta = 10,
+                        TiempoEntrega = "5 dias habiles",
+                        LugarEntrega = "Lima",
+                        Garantia = "12 meses",
+                        FormaPago = "Contado",
+                        PorcentajeIGV = 18.0,
+                        SubTotal = subtotal,
+                        TotalIGV = totalIgv,
+                        Total = total,
+                        Estado = "PENDIENTE"
+                    )
+                    val proformaId = intranetDao.insertProforma(newProforma)
+
+                    intranetDao.insertDetalleProforma(
+                        DetalleProformaEntity(
+                            IdProforma = proformaId.toInt(),
+                            IdProducto = idProducto,
+                            Cantidad = cantidad.toDouble(),
+                            PrecioUnitario = producto.PrecioUnitario,
+                            Total = subtotal,
+                            DescripcionAdicional = producto.Nombre
+                        )
+                    )
+                    
+                    _lastProforma.value = newProforma.copy(IdProforma = if (remoteId > 0) remoteId else proformaId.toInt())
+                    _proformaGenerada.value = true
+                    _uiMessage.value = "Proforma generada y sincronizada."
+                }
+                loadIntranetData() 
+            } else {
+                _uiMessage.value = "Stock insuficiente disponible."
             }
         }
     }
 
-    // CARSIL-POL-ASIS: Control de asistencia nativo
-    private val _asistenciaState = MutableStateFlow<AsistenciaEntity?>(null)
-    val asistenciaState: StateFlow<AsistenciaEntity?> = _asistenciaState.asStateFlow()
+    // CARSIL-POL-ASIS: Control de asistencia nativo sincronizado
+    private val _asistenciaState = MutableStateFlow<Map<String, Any?>?>(null)
+    val asistenciaState: StateFlow<Map<String, Any?>?> = _asistenciaState.asStateFlow()
 
     fun cargarAsistenciaHoy(idUsuario: Int) {
         viewModelScope.launch {
-            val empleado = intranetDao.getEmpleadoByUsuario(idUsuario)
-            if (empleado != null) {
+            val idEmpleado = RailwayDatabase.getEmpleadoByUserId(idUsuario)
+            if (idEmpleado > 0) {
                 val fechaDeHoy = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
-                _asistenciaState.value = intranetDao.getAsistenciaHoy(empleado.IdEmpleado, fechaDeHoy)
+                _asistenciaState.value = RailwayDatabase.getAsistenciaHoy(idEmpleado, fechaDeHoy)
+            } else {
+                // Fallback local
+                val empleadoLocal = intranetDao.getEmpleadoByUsuario(idUsuario)
+                if (empleadoLocal != null) {
+                    val fechaDeHoy = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+                    val localAsis = intranetDao.getAsistenciaHoy(empleadoLocal.IdEmpleado, fechaDeHoy)
+                    _asistenciaState.value = if (localAsis != null) mapOf(
+                        "HoraEntrada" to localAsis.HoraEntrada,
+                        "HoraSalida" to localAsis.HoraSalida
+                    ) else null
+                }
             }
         }
     }
 
     fun registrarAsistencia(idUsuario: Int) {
         viewModelScope.launch {
-            val empleado = intranetDao.getEmpleadoByUsuario(idUsuario)
-            if (empleado != null) {
-                val fechaDeHoy = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
-                val horaActual = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
-                
-                val asistenciaActual = intranetDao.getAsistenciaHoy(empleado.IdEmpleado, fechaDeHoy)
+            val idEmpleado = RailwayDatabase.getEmpleadoByUserId(idUsuario)
+            val fechaDeHoy = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+            val horaActual = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
+            
+            if (idEmpleado > 0) {
+                val asistenciaActual = RailwayDatabase.getAsistenciaHoy(idEmpleado, fechaDeHoy)
                 
                 if (asistenciaActual == null) {
-                    // Marcar Entrada
+                    RailwayDatabase.insertAsistenciaEntry(idEmpleado, fechaDeHoy, horaActual)
+                } else if (asistenciaActual["HoraSalida"] == null) {
+                    RailwayDatabase.updateAsistenciaExit(idEmpleado, fechaDeHoy, horaActual)
+                }
+                // Recargar de nube
+                _asistenciaState.value = RailwayDatabase.getAsistenciaHoy(idEmpleado, fechaDeHoy)
+            }
+            
+            // SIEMPRE RESPALDO LOCAL
+            val empleadoLocal = intranetDao.getEmpleadoByUsuario(idUsuario)
+            if (empleadoLocal != null) {
+                val localAsis = intranetDao.getAsistenciaHoy(empleadoLocal.IdEmpleado, fechaDeHoy)
+                if (localAsis == null) {
                     intranetDao.insertAsistencia(
                         AsistenciaEntity(
-                            IdEmpleado = empleado.IdEmpleado,
+                            IdEmpleado = empleadoLocal.IdEmpleado,
                             Fecha = fechaDeHoy,
                             JornadaLaboral = "COMPLETA",
                             HoraEntrada = horaActual,
@@ -266,13 +347,9 @@ class IntranetViewModel(private val intranetDao: IntranetDao) : ViewModel() {
                             TipoAsistencia = "REGULAR"
                         )
                     )
-                } else if (asistenciaActual.HoraSalida == null) {
-                    // Marcar Salida
-                    intranetDao.updateHoraSalida(empleado.IdEmpleado, fechaDeHoy, horaActual)
+                } else if (localAsis.HoraSalida == null) {
+                    intranetDao.updateHoraSalida(empleadoLocal.IdEmpleado, fechaDeHoy, horaActual)
                 }
-                
-                // Recargar estado
-                _asistenciaState.value = intranetDao.getAsistenciaHoy(empleado.IdEmpleado, fechaDeHoy)
             }
         }
     }

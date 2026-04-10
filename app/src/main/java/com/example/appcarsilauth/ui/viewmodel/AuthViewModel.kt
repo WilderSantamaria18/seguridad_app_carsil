@@ -363,6 +363,36 @@ class AuthViewModel(
         }
     }
 
+    fun changePassword(userId: Int, currentPass: String, newPass: String, onResult: (Boolean, String) -> Unit) {
+        viewModelScope.launch {
+            _authState.value = AuthState.Loading
+            try {
+                val emailToSearch = email.ifBlank { identifiedUserName.split(" ").lastOrNull() ?: "" } // Intento de obtener context
+                // Si no tenemos el email a la mano, buscamos por ID primero o usamos el email guardado
+                val user = RailwayDatabase.getUserByEmail(email) 
+                
+                val storedHash = (user?.get("Clave") as? String)?.replaceFirst("$2b$", "$2a$")
+                
+                if (storedHash != null && BCrypt.checkpw(currentPass, storedHash)) {
+                    val newHash = BCrypt.hashpw(newPass, BCrypt.gensalt())
+                    val success = RailwayDatabase.updateUserPassword(userId, newHash)
+                    if (success) {
+                        onResult(true, "Contraseña actualizada correctamente.")
+                        registerAuditLog(email, "PASSWORD_CHANGED", "USUARIO")
+                    } else {
+                        onResult(false, "Error al actualizar en la base de datos.")
+                    }
+                } else {
+                    onResult(false, "La contraseña actual es incorrecta.")
+                }
+            } catch (e: Exception) {
+                onResult(false, "Error: ${e.message}")
+            } finally {
+                _authState.value = AuthState.Idle
+            }
+        }
+    }
+
     private fun startLockoutTimer(userId: String) {
         viewModelScope.launch {
             var remaining = validateLockoutUseCase.getRemainingLockoutTimeMs(userId)

@@ -214,6 +214,10 @@ class MainActivity : FragmentActivity() {
                             roleId = userRoleId,
                             isBiometricEnrolled = isBiometricEnrolled,
                             isBiometricAvailable = canUseBiometric,
+                            userId = userId,
+                            onChangePassword = { current, new, onRes ->
+                                authViewModel.changePassword(userId, current, new, onRes)
+                            },
                             onEnrollBiometric = {
                                 // LOGICA DE VALIDACION DE HUELLA EXISTENTE
                                 if (biometricStorage.isBiometricEnrolled() && !biometricStorage.isEnrolledFor(userEmail)) {

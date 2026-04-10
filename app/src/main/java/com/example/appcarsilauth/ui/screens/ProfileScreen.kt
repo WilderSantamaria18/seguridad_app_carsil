@@ -29,6 +29,8 @@ fun ProfileScreen(
     roleId: Int,
     isBiometricEnrolled: Boolean,
     isBiometricAvailable: Boolean,
+    userId: Int,
+    onChangePassword: (String, String, (Boolean, String) -> Unit) -> Unit,
     onEnrollBiometric: () -> Unit,
     onRemoveBiometric: () -> Unit,
     onBack: () -> Unit
@@ -40,6 +42,13 @@ fun ProfileScreen(
         4 -> "Vendedor"
         else -> "Usuario"
     }
+
+    var showPasswordDialog by remember { mutableStateOf(false) }
+    var currentPass by remember { mutableStateOf("") }
+    var newPass by remember { mutableStateOf("") }
+    var confirmPass by remember { mutableStateOf("") }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+    var isChanging by remember { mutableStateOf(false) }
 
     Scaffold(
         containerColor = CarsilColors.Background,
@@ -237,7 +246,100 @@ fun ProfileScreen(
             ProfileInfoRow(Icons.Default.Lock, "Sesión", "Expira por inactividad (10 min)")
             ProfileInfoRow(Icons.Default.Security, "Cifrado", "AES-256 + HMAC-SHA256")
 
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Botón Cambiar Contraseña
+            Button(
+                onClick = { showPasswordDialog = true },
+                modifier = Modifier.fillMaxWidth().height(56.dp),
+                shape = CarsilShapes.Medium,
+                colors = ButtonDefaults.buttonColors(containerColor = Color.Black)
+            ) {
+                Icon(Icons.Default.Password, null, tint = Color.White)
+                Spacer(modifier = Modifier.width(12.dp))
+                Text("Cambiar Contraseña", fontWeight = FontWeight.Bold, color = Color.White)
+            }
+
             Spacer(modifier = Modifier.height(32.dp))
+        }
+
+        if (showPasswordDialog) {
+            AlertDialog(
+                onDismissRequest = { if (!isChanging) showPasswordDialog = false },
+                title = { Text("Cambiar Contraseña", fontWeight = FontWeight.Bold) },
+                text = {
+                    Column {
+                        if (errorMessage != null) {
+                            Text(errorMessage!!, color = Color.Red, fontSize = 12.sp, modifier = Modifier.padding(bottom = 8.dp))
+                        }
+                        
+                        OutlinedTextField(
+                            value = currentPass,
+                            onValueChange = { currentPass = it },
+                            label = { Text("Contraseña Actual") },
+                            modifier = Modifier.fillMaxWidth(),
+                            visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                            shape = CarsilShapes.Small
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = newPass,
+                            onValueChange = { newPass = it },
+                            label = { Text("Nueva Contraseña") },
+                            modifier = Modifier.fillMaxWidth(),
+                            visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                            shape = CarsilShapes.Small
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = confirmPass,
+                            onValueChange = { confirmPass = it },
+                            label = { Text("Confirmar Contraseña") },
+                            modifier = Modifier.fillMaxWidth(),
+                            visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                            shape = CarsilShapes.Small
+                        )
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            if (newPass != confirmPass) {
+                                errorMessage = "Las contraseñas no coinciden"
+                                return@Button
+                            }
+                            if (newPass.length < 6) {
+                                errorMessage = "La contraseña debe tener al menos 6 caracteres"
+                                return@Button
+                            }
+                            isChanging = true
+                            errorMessage = null
+                            onChangePassword(currentPass, newPass) { success, msg ->
+                                isChanging = false
+                                if (success) {
+                                    showPasswordDialog = false
+                                    currentPass = ""
+                                    newPass = ""
+                                    confirmPass = ""
+                                } else {
+                                    errorMessage = msg
+                                }
+                            }
+                        },
+                        enabled = !isChanging && currentPass.isNotBlank() && newPass.isNotBlank(),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color.Black)
+                    ) {
+                        if (isChanging) CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Color.White)
+                        else Text("Actualizar")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showPasswordDialog = false }, enabled = !isChanging) {
+                        Text("Cancelar", color = Color.Gray)
+                    }
+                },
+                containerColor = Color.White
+            )
         }
     }
 }
