@@ -1,22 +1,23 @@
 package com.example.appcarsilauth.ui.viewmodel
 
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.appcarsilauth.domain.use_case.ValidateLockoutUseCase
 import com.example.appcarsilauth.data.local.dao.AuditDao
 import com.example.appcarsilauth.data.local.dao.IntranetDao
 import com.example.appcarsilauth.data.local.entity.AuditLog
+import com.example.appcarsilauth.data.remote.RailwayDatabase
+import com.example.appcarsilauth.domain.use_case.ValidateLockoutUseCase
 import com.example.appcarsilauth.util.JwtTokenManager
-import org.mindrot.jbcrypt.BCrypt
+import java.util.Locale
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import java.util.Locale
+import org.mindrot.jbcrypt.BCrypt
 
 sealed class AuthState {
     object Idle : AuthState()
@@ -28,9 +29,9 @@ sealed class AuthState {
 }
 
 class AuthViewModel(
-    private val validateLockoutUseCase: ValidateLockoutUseCase,
-    private val auditDao: AuditDao,
-    private val intranetDao: IntranetDao
+        private val validateLockoutUseCase: ValidateLockoutUseCase,
+        private val auditDao: AuditDao,
+        private val intranetDao: IntranetDao
 ) : ViewModel() {
 
     private val _authState = MutableStateFlow<AuthState>(AuthState.Idle)
@@ -39,7 +40,7 @@ class AuthViewModel(
     var email by mutableStateOf("")
     var pin by mutableStateOf("")
     var rememberMe by mutableStateOf(false)
-    
+
     // Captcha State (CARSIL-POL-ACC)
     var currentCaptchaCode by mutableStateOf("")
     var userCaptchaInput by mutableStateOf("")
@@ -52,9 +53,14 @@ class AuthViewModel(
     var identifiedUserName by mutableStateOf("")
     var identifiedUserId by mutableStateOf(-1)
     var identifiedRoleId by mutableStateOf(-1)
+    private var identifiedUserHash: String? = null // Guardamos el hash temporalmente
 
-    fun onEmailChange(newValue: String) { email = newValue.trim().lowercase(Locale.ROOT) }
-    fun onPinChange(newValue: String) { pin = newValue }
+    fun onEmailChange(newValue: String) {
+        email = newValue.trim().lowercase(Locale.ROOT)
+    }
+    fun onPinChange(newValue: String) {
+        pin = newValue
+    }
     fun onCaptchaInputChange(newValue: String) {
         userCaptchaInput = newValue
         isCaptchaVerified = false
@@ -102,18 +108,31 @@ class AuthViewModel(
         viewModelScope.launch {
             _authState.value = AuthState.Loading
             try {
-                val usuario = intranetDao.getUserByEmail(normalizedEmail)
-                if (usuario != null) {
-                    identifiedUserName = "${usuario.Nombres} ${usuario.Apellidos}"
-                    identifiedUserId = usuario.IdUsuario
-                    identifiedRoleId = usuario.IdRol
+                // PRIMERO BUSCAR EN RAILWAY (NUBE)
+                val remoteUser = RailwayDatabase.getUserByEmail(normalizedEmail)
+
+                if (remoteUser != null) {
+                    identifiedUserName = "${remoteUser["Nombres"]} ${remoteUser["Apellidos"]}"
+                    identifiedUserId = remoteUser["IdUsuario"] as Int
+                    identifiedRoleId = if (remoteUser["Rol"] == "Administrador") 1 else 2
+                    identifiedUserHash = remoteUser["Clave"] as String
                     _authState.value = AuthState.Idle
-                    loginStep = 2 // Pasar al siguiente paso
+                    loginStep = 2
                 } else {
-                    _authState.value = AuthState.Error("Usuario no registrado.")
+                    // SI NO ESTÁ EN NUBE, BUSCAR EN LOCAL (OPCIONAL)
+                    val usuario = intranetDao.getUserByEmail(normalizedEmail)
+                    if (usuario != null) {
+                        identifiedUserName = "${usuario.Nombres} ${usuario.Apellidos}"
+                        identifiedUserId = usuario.IdUsuario
+                        identifiedRoleId = usuario.IdRol
+                        _authState.value = AuthState.Idle
+                        loginStep = 2
+                    } else {
+                        _authState.value = AuthState.Error("Usuario no registrado en CARSIL.")
+                    }
                 }
-            } catch (e: Exception) {
-                _authState.value = AuthState.Error("Error: ${e.localizedMessage}")
+            } catch (e: Throwable) {
+                _authState.value = AuthState.Error("Conexión Railway: ${e.message}")
             }
         }
     }
@@ -140,32 +159,37 @@ class AuthViewModel(
         viewModelScope.launch {
             _authState.value = AuthState.Loading
 
+            /* BLOQUEO TEMPORALMENTE DESACTIVADO
             if (validateLockoutUseCase.isLockedOut(normalizedEmail)) {
                 startLockoutTimer(normalizedEmail)
                 return@launch
             }
+            */
 
             try {
-                val usuario = intranetDao.getUserByEmail(normalizedEmail)
-                
-                if (usuario != null && BCrypt.checkpw(trimmedPin, usuario.Clave)) {
-                    // Credenciales correctas -> Mostrar Captcha
+                // AJUSTE DE COMPATIBILIDAD: Convertimos $2b$ a $2a$ para que Android lo reconozca
+                val storedHash = (identifiedUserHash ?: intranetDao.getUserByEmail(normalizedEmail)?.Clave)?.replaceFirst("$2b$", "$2a$")
+
+                if (storedHash != null && BCrypt.checkpw(trimmedPin, storedHash)) {
                     _authState.value = AuthState.Idle
                     isCaptchaModalVisible = true
                     captchaAttemptsInModal = 0
                 } else {
+                    /* BLOQUEO TEMPORALMENTE DESACTIVADO
                     val isLocked = validateLockoutUseCase.recordFailedLogin(normalizedEmail)
                     if (isLocked) {
                         startLockoutTimer(normalizedEmail)
                     } else {
-                        _authState.value = AuthState.Error("Credenciales incorrectas. Verifica correo y contraseña.")
-                        // Seguridad: Borrar campos si falla
+                        _authState.value = AuthState.Error("Contraseña incorrecta.")
                         pin = "" 
                     }
-                    registerAuditLog(normalizedEmail, "LOGIN_PRE_VERIFY_FAILED", "AUTH_MODULE")
+                    */
+                    _authState.value = AuthState.Error("Contraseña incorrecta.")
+                    pin = ""
+                    registerAuditLog(normalizedEmail, "LOGIN_FAILED", "AUTH_MODULE")
                 }
-            } catch (e: Exception) {
-                _authState.value = AuthState.Error("Error: ${e.localizedMessage}")
+            } catch (e: Throwable) {
+                _authState.value = AuthState.Error("Error de validación: ${e.message}")
             }
         }
     }
@@ -173,34 +197,65 @@ class AuthViewModel(
     // Paso 2: Validar Captcha y Finalizar Login
     fun finalizeLoginWithCaptcha() {
         val normalizedEmail = email.trim().lowercase(Locale.ROOT)
-        
+
         if (userCaptchaInput.trim().uppercase() == currentCaptchaCode.trim().uppercase()) {
             // Captcha Correcto -> Login Final
             viewModelScope.launch {
                 _authState.value = AuthState.Loading
                 try {
-                    val usuario = intranetDao.getUserByEmail(normalizedEmail)
-                    if (usuario != null) {
+                    val remoteUser = RailwayDatabase.getUserByEmail(normalizedEmail)
+
+                    if (remoteUser != null) {
                         validateLockoutUseCase.onSuccessfulLogin(normalizedEmail)
-                        val jwtToken = JwtTokenManager.generateToken(usuario.Correo, usuario.IdRol, usuario.IdUsuario)
-                        
+                        val jwtToken =
+                                JwtTokenManager.generateToken(
+                                        remoteUser["Correo"] as String,
+                                        if (remoteUser["Rol"] == "Administrador") 1 else 2,
+                                        remoteUser["IdUsuario"] as Int
+                                )
+
                         isCaptchaModalVisible = false
-                        // PASO 3: Mostrar Animacion de Exito
                         _authState.value = AuthState.SuccessAnimation
-                        registerAuditLog(normalizedEmail, "LOGIN_SUCCESS_CAPTCHA_VERIFIED", "AUTH_MODULE")
-                        
-                        // Seguridad: Borrar inputs inmediatamente para que no queden en memoria
-                        val finalEmail = usuario.Correo
-                        val finalRole = usuario.IdRol
+                        registerAuditLog(normalizedEmail, "LOGIN_SUCCESS_REMOTE", "AUTH_MODULE")
+
+                        val finalEmail = remoteUser["Correo"] as String
+                        val finalRole = if (remoteUser["Rol"] == "Administrador") 1 else 2
                         clearInputs()
 
-                        delay(4000) // Duración de la animación (4 segundos)
-                        
-                        // PASO FINAL: Navegar al Dashboard
-                        _authState.value = AuthState.Success(tokenJwt = jwtToken, email = finalEmail, roleId = finalRole)
+                        delay(4000)
+                        _authState.value =
+                                AuthState.Success(
+                                        tokenJwt = jwtToken,
+                                        email = finalEmail,
+                                        roleId = finalRole
+                                )
+                    } else {
+                        // Respaldo local si no está en nube en este paso crítico
+                        val usuario = intranetDao.getUserByEmail(normalizedEmail)
+                        if (usuario != null) {
+                            validateLockoutUseCase.onSuccessfulLogin(normalizedEmail)
+                            val jwtToken =
+                                    JwtTokenManager.generateToken(
+                                            usuario.Correo,
+                                            usuario.IdRol,
+                                            usuario.IdUsuario
+                                    )
+                            isCaptchaModalVisible = false
+                            _authState.value = AuthState.SuccessAnimation
+                            val finalEmail = usuario.Correo
+                            val finalRole = usuario.IdRol
+                            clearInputs()
+                            delay(4000)
+                            _authState.value =
+                                    AuthState.Success(
+                                            tokenJwt = jwtToken,
+                                            email = finalEmail,
+                                            roleId = finalRole
+                                    )
+                        }
                     }
                 } catch (e: Exception) {
-                    _authState.value = AuthState.Error("Error fatal: ${e.localizedMessage}")
+                    _authState.value = AuthState.Error("Error finalizando sesión remota.")
                 }
             }
         } else {
@@ -208,12 +263,14 @@ class AuthViewModel(
             captchaAttemptsInModal++
             if (captchaAttemptsInModal >= 5) {
                 isCaptchaModalVisible = false
-                _authState.value = AuthState.Error("Demasiados intentos de captcha. Proceso reiniciado.")
+                _authState.value =
+                        AuthState.Error("Demasiados intentos de captcha. Proceso reiniciado.")
                 clearInputs() // Seguridad: Borrar todo si exceden intentos
                 registerAuditLog(normalizedEmail, "CAPTCHA_ATTEMPTS_EXCEEDED", "AUTH_MODULE")
             } else {
                 userCaptchaInput = ""
-                _authState.value = AuthState.Error("Código incorrecto. Intento $captchaAttemptsInModal de 5.")
+                _authState.value =
+                        AuthState.Error("Código incorrecto. Intento $captchaAttemptsInModal de 5.")
                 // Generar nuevo captcha automáticamente? O dejar que use el botón de refrescar
             }
         }
@@ -224,7 +281,8 @@ class AuthViewModel(
         if (targetEmail.isNotBlank()) {
             loginByEmail(targetEmail)
         } else {
-            _authState.value = AuthState.Error("No hay usuario enlazado. Inicia sesión normalmente primero.")
+            _authState.value =
+                    AuthState.Error("No hay usuario enlazado. Inicia sesión normalmente primero.")
         }
     }
 
@@ -232,19 +290,45 @@ class AuthViewModel(
         viewModelScope.launch {
             _authState.value = AuthState.Loading
             try {
-                val usuario = intranetDao.getUserByEmail(targetEmail)
-                if (usuario != null) {
+                // BIOMETRÍA TAMBIÉN BUSCA EN RAILWAY
+                val remoteUser =
+                        RailwayDatabase.getUserByEmail(targetEmail)
+                                ?: mapOf(
+                                        "Correo" to
+                                                (intranetDao.getUserByEmail(targetEmail)?.Correo
+                                                        ?: ""),
+                                        "IdRol" to
+                                                (intranetDao.getUserByEmail(targetEmail)?.IdRol
+                                                        ?: 2),
+                                        "IdUsuario" to
+                                                (intranetDao.getUserByEmail(targetEmail)?.IdUsuario
+                                                        ?: 0),
+                                        "Rol" to "Empleado"
+                                )
+
+                val finalEmail = remoteUser["Correo"] as String
+                val finalRole =
+                        if (remoteUser["Rol"] == "Administrador") 1
+                        else (remoteUser["IdRol"] as? Int ?: 2)
+                val finalId = remoteUser["IdUsuario"] as Int
+
+                if (finalEmail.isNotEmpty()) {
                     validateLockoutUseCase.onSuccessfulLogin(targetEmail)
-                    val jwtToken = JwtTokenManager.generateToken(usuario.Correo, usuario.IdRol, usuario.IdUsuario)
+                    val jwtToken = JwtTokenManager.generateToken(finalEmail, finalRole, finalId)
                     _authState.value = AuthState.SuccessAnimation
-                    registerAuditLog(usuario.Correo, "LOGIN_BIOMETRIC_SUCCESS", "AUTH_MODULE")
+                    registerAuditLog(finalEmail, "LOGIN_BIOMETRIC_SUCCESS", "AUTH_MODULE")
                     delay(4000)
-                    _authState.value = AuthState.Success(tokenJwt = jwtToken, email = usuario.Correo, roleId = usuario.IdRol)
+                    _authState.value =
+                            AuthState.Success(
+                                    tokenJwt = jwtToken,
+                                    email = finalEmail,
+                                    roleId = finalRole
+                            )
                 } else {
-                    _authState.value = AuthState.Error("Usuario no encontrado.")
+                    _authState.value = AuthState.Error("Falla crítica de identidad.")
                 }
             } catch (e: Exception) {
-                _authState.value = AuthState.Error("Error biométrico: ${e.localizedMessage}")
+                _authState.value = AuthState.Error("Error al validar biometría remota.")
             }
         }
     }
@@ -253,7 +337,12 @@ class AuthViewModel(
         val currentState = _authState.value
         if (currentState is AuthState.Success) {
             viewModelScope.launch {
-                val newToken = JwtTokenManager.generateToken(currentState.email, currentState.roleId, 1 /* userId simulado o extraido */)
+                val newToken =
+                        JwtTokenManager.generateToken(
+                                currentState.email,
+                                currentState.roleId,
+                                1 /* userId simulado o extraido */
+                        )
                 _authState.value = currentState.copy(tokenJwt = newToken)
                 registerAuditLog(currentState.email, "TOKEN_REFRESH", "AUTH_MODULE")
             }
@@ -263,13 +352,13 @@ class AuthViewModel(
     private fun registerAuditLog(userId: String, action: String, target: String) {
         viewModelScope.launch {
             auditDao.insertLog(
-                AuditLog(
-                    userId = userId,
-                    action = action,
-                    targetTable = target,
-                    timestamp = System.currentTimeMillis(),
-                    deviceMetadata = "Android Platform v.Auth"
-                )
+                    AuditLog(
+                            userId = userId,
+                            action = action,
+                            targetTable = target,
+                            timestamp = System.currentTimeMillis(),
+                            deviceMetadata = "Android Platform v.Auth"
+                    )
             )
         }
     }

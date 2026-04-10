@@ -11,6 +11,7 @@ import com.example.appcarsilauth.data.local.entity.AsistenciaEntity
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import com.example.appcarsilauth.data.remote.RailwayDatabase
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -27,6 +28,9 @@ class IntranetViewModel(private val intranetDao: IntranetDao) : ViewModel() {
     private val _lastProforma = MutableStateFlow<ProformaEntity?>(null)
     val lastProforma: StateFlow<ProformaEntity?> = _lastProforma.asStateFlow()
 
+    private val _proformas = MutableStateFlow<List<Map<String, Any>>>(emptyList())
+    val proformas: StateFlow<List<Map<String, Any>>> = _proformas.asStateFlow()
+
     private val _proformaGenerada = MutableStateFlow<Boolean>(false)
     val proformaGenerada: StateFlow<Boolean> = _proformaGenerada.asStateFlow()
 
@@ -42,10 +46,43 @@ class IntranetViewModel(private val intranetDao: IntranetDao) : ViewModel() {
         }
     }
 
-    fun loadIntranetData() {
+    fun loadIntranetData(search: String = "") {
         viewModelScope.launch {
-            _clientes.value = intranetDao.getAllClientes()
-            _productos.value = intranetDao.getAllProductos()
+            // TRAER CLIENTES DE RAILWAY
+            val remoteClients = RailwayDatabase.getClients(search)
+            _clientes.value = remoteClients.map { map ->
+                ClienteEntity(
+                    IdCliente = map["IdCliente"] as Int,
+                    Documento = map["Documento"] as String,
+                    RazonSocial = map["RazonSocial"] as String,
+                    Direccion = map["Direccion"] as String,
+                    Telefono = map["Telefono"] as String,
+                    Celular = map["Celular"] as String,
+                    Email = map["Email"] as String,
+                    Contacto = map["NombreContacto"] as String,
+                    Estado = 1
+                )
+            }
+            
+            // TRAER PRODUCTOS DE RAILWAY
+            val remoteProducts = RailwayDatabase.getProducts(search)
+            _productos.value = remoteProducts.map { map ->
+                ProductoEntity(
+                    IdProducto = map["IdProducto"] as Int,
+                    Codigo = map["Codigo"] as String,
+                    Nombre = map["Nombre"] as String,
+                    Marca = map["Marca"] as String,
+                    PrecioUnitario = map["PrecioUnitario"] as Double,
+                    Stock = map["Stock"] as Int,
+                    Estado = 1
+                )
+            }
+        }
+    }
+
+    fun loadAllProformas(search: String = "") {
+        viewModelScope.launch {
+            _proformas.value = RailwayDatabase.getProformas(search)
         }
     }
 

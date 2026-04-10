@@ -64,6 +64,7 @@ dependencies {
     implementation("androidx.biometric:biometric:1.2.0-alpha05")
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
     implementation("org.mindrot:jbcrypt:0.4")
+    implementation("mysql:mysql-connector-java:5.1.49")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.3")
 
     testImplementation(libs.junit)

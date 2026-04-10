@@ -44,6 +44,11 @@ fun ProductsScreen(
     var stockMinimo by remember { mutableStateOf("") }
     
     var showAddForm by remember { mutableStateOf(false) }
+    var searchQuery by remember { mutableStateOf("") }
+
+    LaunchedEffect(searchQuery) {
+        viewModel.loadIntranetData(searchQuery)
+    }
 
     LaunchedEffect(Unit) {
         viewModel.loadIntranetData()
@@ -155,6 +160,24 @@ fun ProductsScreen(
                     }
                 }
             }
+
+            // Barra de Búsqueda Dinámica de Inventario
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                placeholder = { Text("Buscar por Nombre o Código SKU...") },
+                leadingIcon = { Icon(Icons.Default.Search, null) },
+                shape = RoundedCornerShape(20.dp),
+                singleLine = true,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedContainerColor = Color.White,
+                    unfocusedContainerColor = Color.White,
+                    focusedBorderColor = Color.Black
+                )
+            )
 
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
