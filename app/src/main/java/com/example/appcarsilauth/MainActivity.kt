@@ -128,16 +128,27 @@ class MainActivity : FragmentActivity() {
 
             val lastActivityTime by lastActivityTimeState
             var isSessionExpired by remember { mutableStateOf(false) }
+            var showInactivityWarning by remember { mutableStateOf(false) }
             var showExitDialog by remember { mutableStateOf(false) }
             val isLoading by intranetViewModel.isLoading.collectAsState()
 
-            // CARSIL-POL-SEC: Control de inactividad de 5 minutos
+            // CARSIL-POL-SEC: Control de inactividad (4m Aviso, 5m Cierre)
             LaunchedEffect(authState, lastActivityTime) {
                 if (authState is AuthState.Success) {
                     while (true) {
-                        delay(30000) // Verificar cada 30 segundos
-                        val inactiveTime = System.currentTimeMillis() - lastActivityTime
-                        if (inactiveTime > 5 * 60 * 1000 && !isSessionExpired) {
+                        delay(5000) // Verificación más frecuente (cada 5s)
+                        val elapsed = System.currentTimeMillis() - lastActivityTime
+                        
+                        // Umbral 1: Aviso (4 minutos = 240,000 ms)
+                        if (elapsed > 4 * 60 * 1000 && elapsed < 5 * 60 * 1000) {
+                            if (!showInactivityWarning && !isSessionExpired) {
+                                showInactivityWarning = true
+                            }
+                        } 
+                        
+                        // Umbral 2: Cierre (5 minutos = 300,000 ms)
+                        if (elapsed >= 5 * 60 * 1000 && !isSessionExpired) {
+                            showInactivityWarning = false
                             isSessionExpired = true
                             authViewModel.logout()
                         }
@@ -242,6 +253,47 @@ class MainActivity : FragmentActivity() {
                                 }
                             }
                         }
+                    }
+
+                    // ADVERTENCIA DE INACTIVIDAD (CARSIL-POL-INACTIVITY)
+                    if (showInactivityWarning) {
+                        AlertDialog(
+                            onDismissRequest = { /* No cerrar al tocar fuera por seguridad */ },
+                            icon = { Icon(Icons.Default.Timer, contentDescription = null, tint = CarsilColors.Primary) },
+                            title = { Text("Aviso de Inactividad", fontWeight = FontWeight.Bold) },
+                            text = { 
+                                Text(
+                                    "Tu sesión está próxima a expirar por falta de actividad. ¿Deseas permanecer conectado?",
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                ) 
+                            },
+                            confirmButton = {
+                                Button(
+                                    onClick = {
+                                        showInactivityWarning = false
+                                        lastActivityTimeState.longValue = System.currentTimeMillis()
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = CarsilColors.Primary),
+                                    shape = CarsilShapes.Medium
+                                ) {
+                                    Text("PERMANECER")
+                                }
+                            },
+                            dismissButton = {
+                                TextButton(
+                                    onClick = {
+                                        showInactivityWarning = false
+                                        authViewModel.logout()
+                                        isSessionExpired = true
+                                    }
+                                ) {
+                                    Text("CERRAR SESIÓN", color = Color.Red)
+                                }
+                            },
+                            containerColor = Color.White,
+                            textContentColor = CarsilColors.TextPrimary,
+                            titleContentColor = CarsilColors.TextPrimary
+                        )
                     }
                     
                     // DIALOGO DE ADVERTENCIA SEGURIDAD (BLOQUEO)
