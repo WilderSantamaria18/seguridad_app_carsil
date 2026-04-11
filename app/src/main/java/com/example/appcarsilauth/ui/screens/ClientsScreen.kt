@@ -32,6 +32,7 @@ fun ClientsScreen(
     onBack: () -> Unit
 ) {
     val clientes by viewModel.clientes.collectAsState()
+    val isLoading by viewModel.isLoading.collectAsState()
     
     var documento by remember { mutableStateOf("") }
     var razonSocial by remember { mutableStateOf("") }
@@ -69,6 +70,13 @@ fun ClientsScreen(
         }
     ) { padding ->
         Column(modifier = Modifier.padding(padding)) {
+            if (isLoading) {
+                LinearProgressIndicator(
+                    modifier = Modifier.fillMaxWidth().height(3.dp),
+                    color = com.example.appcarsilauth.ui.components.CarsilColors.Primary,
+                    trackColor = com.example.appcarsilauth.ui.components.CarsilColors.PrimaryLight
+                )
+            }
             if (showAddForm) {
                 Surface(modifier = Modifier.fillMaxWidth(), color = Color.White, shadowElevation = 4.dp) {
                     Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -86,7 +94,13 @@ fun ClientsScreen(
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
                 modifier = Modifier.fillMaxWidth().padding(16.dp),
-                placeholder = { Text("Buscar en Railway...") },
+                placeholder = {
+                    Text(
+                        "Buscar cliente por documento...",
+                        color = Color.Black,
+                        fontWeight = FontWeight.Bold
+                    )
+                },
                 leadingIcon = { Icon(Icons.Default.Search, null) },
                 shape = RoundedCornerShape(25.dp),
                 singleLine = true,
@@ -94,7 +108,7 @@ fun ClientsScreen(
             )
 
             LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                item { Text("Mostrando ${clientes.size} clientes", fontSize = 12.sp, color = Color.Gray) }
+                item { Text("Mostrando ${clientes.size} clientes", fontSize = 12.sp, color = Color.Black) }
                 items(clientes) { cliente ->
                     ClienteCard(cliente) { selectedClientDetail = cliente }
                 }
@@ -124,7 +138,7 @@ fun ClienteCard(cliente: ClienteEntity, onClick: () -> Unit) {
                 Spacer(Modifier.width(12.dp))
                 Column {
                     Text(cliente.RazonSocial, fontWeight = FontWeight.Black, fontSize = 15.sp)
-                    Text(cliente.Documento, fontSize = 12.sp, color = Color.Gray)
+                    Text(cliente.Documento, fontSize = 12.sp, color = Color.Black)
                 }
             }
             Spacer(Modifier.height(8.dp))
@@ -136,7 +150,7 @@ fun ClienteCard(cliente: ClienteEntity, onClick: () -> Unit) {
 }
 
 @Composable
-fun ClientDetailModal(client: ClienteEntity, onDismiss: () -> Unit) {
+private fun ClientDetailModal(client: ClienteEntity, onDismiss: () -> Unit) {
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             modifier = Modifier.fillMaxWidth().padding(16.dp),
@@ -149,7 +163,7 @@ fun ClientDetailModal(client: ClienteEntity, onDismiss: () -> Unit) {
                 }
                 Spacer(Modifier.height(16.dp))
                 Text(client.RazonSocial, fontWeight = FontWeight.Black, fontSize = 20.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-                Text("RUC: ${client.Documento}", color = Color.Gray, fontSize = 14.sp)
+                Text("RUC: ${client.Documento}", color = Color.Black, fontSize = 14.sp)
                 
                 Spacer(Modifier.height(24.dp))
                 HorizontalDivider()
@@ -175,12 +189,12 @@ fun ClientDetailModal(client: ClienteEntity, onDismiss: () -> Unit) {
 }
 
 @Composable
-fun DetailItem(icon: ImageVector, label: String, value: String) {
+private fun DetailItem(icon: ImageVector, label: String, value: String) {
     Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
         Icon(icon, null, tint = Color.Gray, modifier = Modifier.size(18.dp))
         Spacer(Modifier.width(12.dp))
         Column {
-            Text(label, fontSize = 10.sp, color = Color.Gray, fontWeight = FontWeight.Bold)
+            Text(label, fontSize = 10.sp, color = Color.Black, fontWeight = FontWeight.Bold)
             Text(value, fontSize = 14.sp, color = Color.Black)
         }
     }
@@ -191,6 +205,6 @@ private fun InfoRow(icon: ImageVector, text: String) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Icon(icon, null, tint = Color.Gray, modifier = Modifier.size(14.dp))
         Spacer(Modifier.width(6.dp))
-        Text(text, fontSize = 12.sp, color = Color.Gray, maxLines = 1)
+        Text(text, fontSize = 12.sp, color = Color.Black, maxLines = 1)
     }
 }

@@ -2,6 +2,7 @@ package com.example.appcarsilauth.ui.screens
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -18,6 +19,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -31,6 +33,7 @@ fun ProductsScreen(
     onBack: () -> Unit
 ) {
     val productos by viewModel.productos.collectAsState()
+    val isLoading by viewModel.isLoading.collectAsState()
     val uiMessage by viewModel.uiMessage.collectAsState()
 
     var codigo by remember { mutableStateOf("") }
@@ -45,6 +48,7 @@ fun ProductsScreen(
     
     var showAddForm by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
+    var selectedProductDetail by remember { mutableStateOf<ProductoEntity?>(null) }
 
     LaunchedEffect(searchQuery) {
         viewModel.loadIntranetData(searchQuery)
@@ -74,6 +78,13 @@ fun ProductsScreen(
         }
     ) { padding ->
         Column(modifier = Modifier.padding(padding)) {
+            if (isLoading) {
+                LinearProgressIndicator(
+                    modifier = Modifier.fillMaxWidth().height(3.dp),
+                    color = com.example.appcarsilauth.ui.components.CarsilColors.Primary,
+                    trackColor = com.example.appcarsilauth.ui.components.CarsilColors.PrimaryLight
+                )
+            }
             if (showAddForm) {
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
@@ -168,7 +179,13 @@ fun ProductsScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 8.dp),
-                placeholder = { Text("Buscar por Nombre o Código SKU...") },
+                placeholder = {
+                    Text(
+                        "Buscar por Nombre o Código SKU...",
+                        color = Color.Black,
+                        fontWeight = FontWeight.Bold
+                    )
+                },
                 leadingIcon = { Icon(Icons.Default.Search, null) },
                 shape = RoundedCornerShape(20.dp),
                 singleLine = true,
@@ -189,13 +206,140 @@ fun ProductsScreen(
                         "Catálogo de Almacén (${productos.size})",
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color.Gray,
+                        color = Color.Black,
                         modifier = Modifier.padding(bottom = 8.dp)
                     )
                 }
 
                 items(productos) { producto ->
-                    ProductoCard(producto)
+                    ProductoCard(producto) { selectedProductDetail = producto }
+                }
+            }
+        }
+
+        // MODAL DE DETALLE DE PRODUCTO
+        if (selectedProductDetail != null) {
+            ProductDetailModal(producto = selectedProductDetail!!) { selectedProductDetail = null }
+        }
+    }
+}
+
+@Composable
+private fun ProductoCard(producto: ProductoEntity, onClick: () -> Unit) {
+    val isLowStock = producto.Stock <= (producto.StockMinimo)
+    val statusColor = if (isLowStock) Color(0xFFD32F2F) else Color(0xFF1B5E20)
+    val statusBg = if (isLowStock) Color(0xFFFFEBEE) else Color(0xFFE8F5E9)
+
+    Surface(
+        modifier = Modifier.fillMaxWidth().clickable { onClick() },
+        shape = RoundedCornerShape(16.dp),
+        color = Color.White,
+        border = BorderStroke(1.dp, Color(0xFFF1F3F4)),
+        shadowElevation = 1.dp
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Icono Identificador Minimalista
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(statusBg),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Default.Inventory2, 
+                        null, 
+                        tint = statusColor,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+                
+                Spacer(modifier = Modifier.width(16.dp))
+                
+                // Información Principal (con control de peso para evitar overflow)
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = producto.Nombre, 
+                        fontWeight = FontWeight.Bold, 
+                        fontSize = 15.sp, 
+                        color = Color.Black,
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = "SKU: ${producto.Codigo}", 
+                        fontSize = 11.sp, 
+                        color = Color.Black,
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                    )
+                }
+                
+                Spacer(modifier = Modifier.width(12.dp))
+                
+                // Precio (Alineado a la derecha)
+                Text(
+                    text = "S/ ${"%.2f".format(producto.PrecioUnitario)}",
+                    fontWeight = FontWeight.Black,
+                    fontSize = 17.sp,
+                    color = Color.Black
+                )
+            }
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            // Sección de detalles y Stock
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Default.Label, 
+                        null, 
+                        tint = Color.LightGray, 
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        text = producto.Marca ?: "CARSIL GNR", 
+                        fontSize = 12.sp, 
+                        color = Color.Black,
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                        modifier = Modifier.widthIn(max = 120.dp)
+                    )
+                }
+                
+                // Badge de Stock Estilizado
+                Surface(
+                    color = if (isLowStock) Color(0xFFFFF1F0) else Color(0xFFF6FFED),
+                    shape = RoundedCornerShape(6.dp),
+                    border = BorderStroke(0.5.dp, if (isLowStock) Color(0xFFFFA39E) else Color(0xFFB7EB8F))
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(6.dp)
+                                .clip(CircleShape)
+                                .background(statusColor)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "Stock: ${producto.Stock}",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.Black
+                        )
+                    }
                 }
             }
         }
@@ -203,80 +347,99 @@ fun ProductsScreen(
 }
 
 @Composable
-private fun ProductoCard(producto: ProductoEntity) {
-    val isLowStock = producto.Stock <= (producto.StockMinimo)
-
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        color = Color.White,
-        border = BorderStroke(1.dp, Color(0xFFEEEEEE)),
-        shadowElevation = 2.dp
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+private fun ProductDetailModal(producto: ProductoEntity, onDismiss: () -> Unit) {
+    androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            shape = RoundedCornerShape(28.dp),
+            color = Color.White
+        ) {
+            Column(
+                modifier = Modifier
+                    .padding(24.dp)
+                    .verticalScroll(rememberScrollState()),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(CircleShape)
-                            .background(if (isLowStock) Color(0xFFFFEBEE) else Color(0xFFE8F5E9)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            Icons.Default.Inventory2, 
-                            null, 
-                            tint = if (isLowStock) Color(0xFFD32F2F) else Color(0xFF2E7D32),
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Column {
-                        Text(producto.Nombre, fontWeight = FontWeight.Black, fontSize = 16.sp, color = Color.Black)
-                        Text("SKU: ${producto.Codigo}", fontSize = 12.sp, color = Color.Gray)
-                    }
+                Box(
+                    modifier = Modifier
+                        .size(64.dp)
+                        .background(Color(0xFFF1F3F4), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Default.Inventory2, null, modifier = Modifier.size(32.dp))
                 }
+                
+                Spacer(modifier = Modifier.height(16.dp))
                 
                 Text(
-                    "S/ ${"%.2f".format(producto.PrecioUnitario)}",
+                    text = producto.Nombre,
                     fontWeight = FontWeight.Black,
-                    fontSize = 18.sp,
-                    color = Color.Black
+                    fontSize = 20.sp,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
                 )
-            }
-            
-            Spacer(modifier = Modifier.height(16.dp))
-            Divider(color = Color(0xFFF1F3F4))
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Factory, null, tint = Color.Gray, modifier = Modifier.size(14.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text(producto.Marca ?: "Generico", fontSize = 12.sp, color = Color.Gray)
-                }
+                Text(
+                    text = "Código SKU: ${producto.Codigo}",
+                    color = Color.Black,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold
+                )
                 
-                Surface(
-                    color = if (isLowStock) Color(0xFFFFCDD2) else Color(0xFFC8E6C9),
-                    shape = RoundedCornerShape(8.dp)
+                Spacer(modifier = Modifier.height(24.dp))
+                HorizontalDivider()
+                Spacer(modifier = Modifier.height(16.dp))
+
+                DetailItem(Icons.Default.Category, "Tipo de Activo", producto.Tipo ?: "General")
+                DetailItem(Icons.Default.Label, "Marca / Fabricante", producto.Marca ?: "CARSIL SAC")
+                DetailItem(Icons.Default.Settings, "Modelo", producto.Modelo ?: "Genérico")
+                DetailItem(Icons.Default.Description, "Ficha Técnica", producto.Descripcion ?: "Sin descripción técnica adicional registrada.")
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                HorizontalDivider()
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    DetailItemCompact(Icons.Default.Payments, "Precio Venta", "S/ ${"%.2f".format(producto.PrecioUnitario)}")
+                    DetailItemCompact(Icons.Default.Warehouse, "Stock Actual", "${producto.Stock} Und")
+                }
+
+                Spacer(modifier = Modifier.height(32.dp))
+                
+                Button(
+                    onClick = onDismiss,
+                    modifier = Modifier.fillMaxWidth().height(52.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.Black)
                 ) {
-                    Text(
-                        text = "Stock: ${producto.Stock}",
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = if (isLowStock) Color(0xFFB71C1C) else Color(0xFF1B5E20)
-                    )
+                    Text("Cerrar Detalle", fontWeight = FontWeight.Bold)
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun DetailItem(icon: ImageVector, label: String, value: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+        verticalAlignment = Alignment.Top
+    ) {
+        Icon(icon, null, tint = Color.Gray, modifier = Modifier.size(18.dp))
+        Spacer(modifier = Modifier.width(16.dp))
+        Column {
+            Text(label, fontSize = 10.sp, color = Color.Gray, fontWeight = FontWeight.Bold)
+            Text(value, fontSize = 14.sp, color = Color.Black)
+        }
+    }
+}
+
+@Composable
+private fun DetailItemCompact(icon: ImageVector, label: String, value: String) {
+    Column(horizontalAlignment = Alignment.Start) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(icon, null, tint = Color.Gray, modifier = Modifier.size(14.dp))
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(label, fontSize = 10.sp, color = Color.Gray, fontWeight = FontWeight.Bold)
+        }
+        Text(value, fontSize = 16.sp, color = Color.Black, fontWeight = FontWeight.Black)
     }
 }

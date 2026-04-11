@@ -126,7 +126,8 @@ object RailwayDatabase {
                 SELECT p.*, c.RazonSocial as ClienteNombre 
                 FROM PROFORMA p 
                 INNER JOIN CLIENTE c ON p.IdCliente = c.IdCliente 
-                WHERE p.Codigo LIKE ? OR c.RazonSocial LIKE ? 
+                WHERE (p.Codigo LIKE ? OR c.RazonSocial LIKE ?)
+                AND p.IdProforma IN (SELECT MAX(IdProforma) FROM PROFORMA GROUP BY Codigo)
                 ORDER BY p.FechaRegistro DESC
             """.trimIndent()
             val pstmt = conn.prepareStatement(query)
@@ -147,6 +148,79 @@ object RailwayDatabase {
         finally { conn?.close() }
         return@withContext list
     }
+    
+    suspend fun getProformaById(idProf: Int): Map<String, Any>? = withContext(Dispatchers.IO) {
+        var conn: Connection? = null
+        try {
+            conn = getConnection()
+            val query = """
+                SELECT p.*, c.RazonSocial, c.Documento as ClientRUC, c.Direccion as ClientDir, 
+                       c.Contacto as ClientContact, c.Email as ClientEmail,
+                       u.Nombres as UserName, u.Apellidos as UserLast
+                FROM PROFORMA p
+                INNER JOIN CLIENTE c ON p.IdCliente = c.IdCliente
+                INNER JOIN USUARIO u ON p.IdUsuario = u.IdUsuario
+                WHERE p.IdProforma = ?
+            """.trimIndent()
+            val pstmt = conn.prepareStatement(query)
+            pstmt.setInt(1, idProf)
+            val rs = pstmt.executeQuery()
+            if (rs.next()) {
+                val map = mutableMapOf<String, Any>()
+                map["IdProforma"] = rs.getInt("IdProforma")
+                map["Codigo"] = rs.getString("Codigo")
+                map["FechaEmision"] = rs.getString("FechaEmision")
+                map["Estado"] = rs.getString("Estado")
+                map["SubTotal"] = rs.getDouble("SubTotal")
+                map["TotalIGV"] = rs.getDouble("TotalIGV")
+                map["Total"] = rs.getDouble("Total")
+                map["FormaPago"] = rs.getString("FormaPago") ?: "CONTADO"
+                map["ValidezOferta"] = rs.getInt("ValidezOferta")
+                map["TiempoEntrega"] = rs.getString("TiempoEntrega") ?: "3-5 DIAS"
+                map["Garantia"] = rs.getString("Garantia") ?: "12 MESES"
+                map["Observaciones"] = rs.getString("Observaciones") ?: ""
+                
+                // Cliente
+                map["ClientName"] = rs.getString("RazonSocial")
+                map["ClientRUC"] = rs.getString("ClientRUC")
+                map["ClientDir"] = rs.getString("ClientDir") ?: "-"
+                map["ClientContact"] = rs.getString("ClientContact") ?: "-"
+                map["ClientEmail"] = rs.getString("ClientEmail") ?: "-"
+                
+                // Usuario
+                map["UserName"] = rs.getString("UserName") ?: ""
+                map["UserLast"] = rs.getString("UserLast") ?: ""
+                
+                return@withContext map
+            }
+        } catch (e: Exception) { Log.e("RailwayDB", "Error getProformaById: ${e.message}") }
+        finally { conn?.close() }
+        return@withContext null
+    }
+
+    suspend fun getProformaDetails(idProf: Int): List<Map<String, Any>> = withContext(Dispatchers.IO) {
+        var conn: Connection? = null
+        val list = mutableListOf<Map<String, Any>>()
+        try {
+            conn = getConnection()
+            val query = "SELECT dp.*, p.Nombre as ProductoNombre FROM DETALLE_PROFORMA dp INNER JOIN PRODUCTO p ON dp.IdProducto = p.IdProducto WHERE dp.IdProforma = ?"
+            val pstmt = conn.prepareStatement(query)
+            pstmt.setInt(1, idProf)
+            val rs = pstmt.executeQuery()
+            while (rs.next()) {
+                list.add(mapOf(
+                    "Cantidad" to rs.getDouble("Cantidad"),
+                    "Unidad" to rs.getString("UnidadMedida"),
+                    "Descripcion" to rs.getString("ProductoNombre"),
+                    "PrecioUnitario" to rs.getDouble("PrecioUnitario"),
+                    "Total" to rs.getDouble("Total")
+                ))
+            }
+        } catch (e: Exception) { Log.e("RailwayDB", "Error details: ${e.message}") }
+        finally { conn?.close() }
+        return@withContext list
+    }
+
     // --- AUDITORÍA / SEGURIDAD ---
     suspend fun updateUserPassword(userId: Int, newHash: String): Boolean = withContext(Dispatchers.IO) {
         var conn: Connection? = null
@@ -209,6 +283,7 @@ object RailwayDatabase {
         return@withContext -1
     }
 
+    // Usar solo cuando se registra una factura/venta confirmada.
     suspend fun updateProductStock(idProducto: Int, reduction: Int): Boolean = withContext(Dispatchers.IO) {
         var conn: Connection? = null
         try {
@@ -344,5 +419,284 @@ object RailwayDatabase {
             Log.e("RailwayDB", "Error update exit: ${e.message}")
             false
         } finally { conn?.close() }
+    }
+
+    // --- DASHBOARD ANALYTICS ---
+    suspend fun getDashboardStats(): Map<String, Int> = withContext(Dispatchers.IO) {
+        var conn: Connection? = null
+        val stats = mutableMapOf<String, Int>()
+        try {
+            conn = getConnection()
+            val query = """
+                SELECT 
+                    (SELECT COUNT(*) FROM CLIENTE) as clientes,
+                    (SELECT COUNT(*) FROM CLIENTE WHERE FechaRegistro >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)) as clientes_30d,
+                    (SELECT COUNT(*) FROM PRODUCTO) as productos,
+                    (SELECT COUNT(*) FROM PRODUCTO WHERE FechaRegistro >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)) as productos_30d,
+                    (SELECT COUNT(*) FROM PROFORMA) as proformas_total,
+                    (SELECT COUNT(*) FROM PROFORMA WHERE DATE(FechaEmision) = CURDATE()) as proformas_hoy,
+                    (SELECT COUNT(*) FROM PROFORMA WHERE DATE(FechaEmision) = DATE_SUB(CURDATE(), INTERVAL 1 DAY)) as proformas_ayer,
+                    (SELECT COUNT(*) FROM EMPLEADO) as empleados,
+                    (SELECT COUNT(*) FROM EMPLEADO WHERE FechaRegistro >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)) as empleados_30d
+            """.trimIndent()
+            val pstmt = conn.prepareStatement(query)
+            val rs = pstmt.executeQuery()
+            if (rs.next()) {
+                stats["clientes"] = rs.getInt("clientes")
+                stats["clientes_30d"] = rs.getInt("clientes_30d")
+                stats["productos"] = rs.getInt("productos")
+                stats["productos_30d"] = rs.getInt("productos_30d")
+                stats["proformas"] = rs.getInt("proformas_total")
+                stats["proformas_hoy"] = rs.getInt("proformas_hoy")
+                stats["proformas_ayer"] = rs.getInt("proformas_ayer")
+                stats["empleados"] = rs.getInt("empleados")
+                stats["empleados_30d"] = rs.getInt("empleados_30d")
+            }
+        } catch (e: Exception) { Log.e("RailwayDB", "Error stats: ${e.message}") }
+        finally { conn?.close() }
+        return@withContext stats
+    }
+
+    suspend fun getProformaActivity(days: Int): List<Int> = withContext(Dispatchers.IO) {
+        var conn: Connection? = null
+        val data = MutableList(days) { 0 }
+        try {
+            conn = getConnection()
+            val query = """
+                SELECT DATE(FechaEmision) as fecha, COUNT(*) as cantidad 
+                FROM PROFORMA 
+                WHERE FechaEmision >= DATE_SUB(CURDATE(), INTERVAL ? DAY)
+                GROUP BY DATE(FechaEmision)
+                ORDER BY fecha ASC
+            """.trimIndent()
+            val pstmt = conn.prepareStatement(query)
+            pstmt.setInt(1, days - 1)
+            val rs = pstmt.executeQuery()
+            // Llenamos la lista basándonos en la fecha para evitar desfases
+            val sdf = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
+            val calendar = java.util.Calendar.getInstance()
+            calendar.add(java.util.Calendar.DAY_OF_YEAR, -(days - 1))
+            
+            val countsMap = mutableMapOf<String, Int>()
+            while (rs.next()) {
+                countsMap[rs.getString("fecha")] = rs.getInt("cantidad")
+            }
+            
+            for (i in 0 until days) {
+                val dateStr = sdf.format(calendar.time)
+                data[i] = countsMap[dateStr] ?: 0
+                calendar.add(java.util.Calendar.DAY_OF_YEAR, 1)
+            }
+        } catch (e: Exception) { Log.e("RailwayDB", "Error activity: ${e.message}") }
+        finally { conn?.close() }
+        return@withContext data
+    }
+    // --- REPORTES ANALÍTICOS ---
+    suspend fun getReportKPIs(): Map<String, Any> = withContext(Dispatchers.IO) {
+        var conn: Connection? = null
+        val kpis = mutableMapOf<String, Any>()
+        try {
+            conn = getConnection()
+            val query = """
+                SELECT 
+                    (SELECT COUNT(*) FROM PROFORMA) as totalProformas,
+                    (SELECT COUNT(*) FROM PROFORMA WHERE Estado = 'PENDIENTE') as proformasPendientes,
+                    (SELECT COUNT(*) FROM PROFORMA WHERE Estado IN ('VENDIDA', 'APROBADA')) as proformasVendidas,
+                    (SELECT COUNT(*) FROM FACTURA) as totalFacturas,
+                    (SELECT COALESCE(SUM(Total), 0) FROM FACTURA WHERE Estado != 'ANULADA') as totalIngresos,
+                    (SELECT COUNT(*) FROM CLIENTE) as totalClientes,
+                    (SELECT COUNT(*) FROM PRODUCTO) as totalProductos
+            """.trimIndent()
+            val pstmt = conn.prepareStatement(query)
+            val rs = pstmt.executeQuery()
+            if (rs.next()) {
+                val totalProf = rs.getInt("totalProformas")
+                val totalFact = rs.getInt("totalFacturas")
+                kpis["totalProformas"] = totalProf
+                kpis["proformasPendientes"] = rs.getInt("proformasPendientes")
+                kpis["proformasVendidas"] = rs.getInt("proformasVendidas")
+                kpis["totalFacturas"] = totalFact
+                kpis["totalIngresos"] = rs.getDouble("totalIngresos")
+                kpis["totalClientes"] = rs.getInt("totalClientes")
+                kpis["totalProductos"] = rs.getInt("totalProductos")
+                
+                // Tasa de conversión: Facturas / Proformas válidas
+                kpis["tasaConversion"] = if (totalProf > 0) (totalFact * 100.0 / totalProf) else 0.0
+            }
+        } catch (e: Exception) { Log.e("RailwayDB", "Error report KPIs: ${e.message}") }
+        finally { conn?.close() }
+        return@withContext kpis
+    }
+
+    suspend fun getProformasByState(): List<Map<String, Any>> = withContext(Dispatchers.IO) {
+        var conn: Connection? = null
+        val list = mutableListOf<Map<String, Any>>()
+        try {
+            conn = getConnection()
+            val query = "SELECT Estado, COUNT(*) as cantidad FROM PROFORMA GROUP BY Estado ORDER BY cantidad DESC"
+            val pstmt = conn.prepareStatement(query)
+            val rs = pstmt.executeQuery()
+            while (rs.next()) {
+                list.add(mapOf(
+                    "estado" to rs.getString("Estado"),
+                    "cantidad" to rs.getInt("cantidad")
+                ))
+            }
+        } catch (e: Exception) { Log.e("RailwayDB", "Error proformas by state: ${e.message}") }
+        finally { conn?.close() }
+        return@withContext list
+    }
+
+    suspend fun getTopClients(limit: Int = 7): List<Map<String, Any>> = withContext(Dispatchers.IO) {
+        var conn: Connection? = null
+        val list = mutableListOf<Map<String, Any>>()
+        try {
+            conn = getConnection()
+            val query = """
+                SELECT c.RazonSocial, COUNT(f.IdFactura) as cantidadVentas, 
+                       COALESCE(SUM(f.Total), 0) as totalMonto
+                FROM FACTURA f 
+                INNER JOIN CLIENTE c ON f.IdCliente = c.IdCliente 
+                WHERE f.Estado != 'ANULADA'
+                GROUP BY c.IdCliente, c.RazonSocial 
+                ORDER BY totalMonto DESC 
+                LIMIT ?
+            """.trimIndent()
+            val pstmt = conn.prepareStatement(query)
+            pstmt.setInt(1, limit)
+            val rs = pstmt.executeQuery()
+            while (rs.next()) {
+                list.add(mapOf(
+                    "cliente" to rs.getString("RazonSocial"),
+                    "cantidad" to rs.getInt("cantidadVentas"),
+                    "monto" to rs.getBigDecimal("totalMonto").toDouble()
+                ))
+            }
+        } catch (e: Exception) { Log.e("RailwayDB", "Error top clients: ${e.message}") }
+        finally { conn?.close() }
+        return@withContext list
+    }
+
+    suspend fun getSalesByMonth(): List<Map<String, Any>> = withContext(Dispatchers.IO) {
+        var conn: Connection? = null
+        val list = mutableListOf<Map<String, Any>>()
+        try {
+            conn = getConnection()
+            val query = """
+                SELECT DATE_FORMAT(FechaEmision, '%Y-%m') as mes, 
+                       COUNT(*) as cantidadVentas,
+                       COALESCE(SUM(Total), 0) as totalVentas
+                FROM FACTURA 
+                WHERE Estado != 'ANULADA' AND FechaEmision >= DATE_SUB(CURDATE(), INTERVAL 12 MONTH)
+                GROUP BY DATE_FORMAT(FechaEmision, '%Y-%m') 
+                ORDER BY mes ASC
+            """.trimIndent()
+            val pstmt = conn.prepareStatement(query)
+            val rs = pstmt.executeQuery()
+            while (rs.next()) {
+                list.add(mapOf(
+                    "mes" to rs.getString("mes"),
+                    "cantidad" to rs.getInt("cantidadVentas"),
+                    "total" to rs.getDouble("totalVentas")
+                ))
+            }
+        } catch (e: Exception) { Log.e("RailwayDB", "Error sales by month: ${e.message}") }
+        finally { conn?.close() }
+        return@withContext list
+    }
+
+    suspend fun getAttendances(
+        fecha: String? = null,
+        search: String = "",
+        estadoFiltro: String = "TODOS"
+    ): List<Map<String, Any>> = withContext(Dispatchers.IO) {
+        var conn: Connection? = null
+        val list = mutableListOf<Map<String, Any>>()
+        try {
+            conn = getConnection()
+
+            val normalizedFilter = estadoFiltro.trim().uppercase()
+            val hasSearch = search.trim().isNotBlank()
+
+            val queryBuilder = StringBuilder(
+                """
+                SELECT
+                    e.IdEmpleado,
+                    e.Cargo,
+                    u.Nombres,
+                    u.Apellidos,
+                    u.Correo,
+                    a.IdAsistencia,
+                    a.Fecha,
+                    a.HoraEntrada,
+                    a.HoraSalida,
+                    CASE
+                        WHEN a.IdAsistencia IS NULL THEN 'SIN REGISTRO'
+                        WHEN a.HoraSalida IS NULL THEN 'EN JORNADA'
+                        ELSE 'COMPLETADA'
+                    END as EstadoAsistencia
+                FROM EMPLEADO e
+                INNER JOIN USUARIO u ON e.IdUsuario = u.IdUsuario
+                LEFT JOIN ASISTENCIA a ON a.IdEmpleado = e.IdEmpleado
+                """.trimIndent()
+            )
+
+            if (!fecha.isNullOrBlank()) {
+                queryBuilder.append(" AND DATE(a.Fecha) = ?")
+            }
+
+            queryBuilder.append(" WHERE u.Estado = 1")
+
+            if (hasSearch) {
+                queryBuilder.append(" AND (")
+                queryBuilder.append("CONCAT(u.Nombres, ' ', u.Apellidos) LIKE ? ")
+                queryBuilder.append("OR e.Cargo LIKE ? ")
+                queryBuilder.append("OR u.Correo LIKE ?")
+                queryBuilder.append(")")
+            }
+
+            when (normalizedFilter) {
+                "EN JORNADA" -> queryBuilder.append(" AND a.IdAsistencia IS NOT NULL AND a.HoraSalida IS NULL")
+                "COMPLETADA" -> queryBuilder.append(" AND a.IdAsistencia IS NOT NULL AND a.HoraSalida IS NOT NULL")
+                "SIN REGISTRO" -> queryBuilder.append(" AND a.IdAsistencia IS NULL")
+            }
+
+            queryBuilder.append(" ORDER BY u.Nombres ASC, u.Apellidos ASC")
+
+            val query = queryBuilder.toString()
+            val pstmt = conn.prepareStatement(query)
+
+            var index = 1
+            if (!fecha.isNullOrBlank()) {
+                pstmt.setString(index++, fecha)
+            }
+
+            if (hasSearch) {
+                val searchPattern = "%${search.trim()}%"
+                pstmt.setString(index++, searchPattern)
+                pstmt.setString(index++, searchPattern)
+                pstmt.setString(index++, searchPattern)
+            }
+
+            val rs = pstmt.executeQuery()
+            while (rs.next()) {
+                val idAsistencia = rs.getObject("IdAsistencia") as? Number
+                val estadoAsistencia = rs.getString("EstadoAsistencia") ?: "SIN REGISTRO"
+
+                list.add(mapOf(
+                    "IdEmpleado" to rs.getInt("IdEmpleado"),
+                    "IdAsistencia" to (idAsistencia?.toInt() ?: 0),
+                    "Empleado" to "${rs.getString("Nombres")} ${rs.getString("Apellidos")}",
+                    "Cargo" to rs.getString("Cargo"),
+                    "Correo" to (rs.getString("Correo") ?: ""),
+                    "Fecha" to (rs.getString("Fecha") ?: (fecha ?: "")),
+                    "HoraEntrada" to (rs.getString("HoraEntrada") ?: "--:--"),
+                    "HoraSalida" to (rs.getString("HoraSalida") ?: "--:--"),
+                    "Estado" to estadoAsistencia
+                ))
+            }
+        } catch (e: Exception) { Log.e("RailwayDB", "Error getAttendances: ${e.message}") }
+        finally { conn?.close() }
+        return@withContext list
     }
 }

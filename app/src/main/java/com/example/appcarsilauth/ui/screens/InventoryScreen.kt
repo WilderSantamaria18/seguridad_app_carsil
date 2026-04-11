@@ -45,8 +45,8 @@ fun InventoryScreen(
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = Color(0xFF0F172A),
-                    titleContentColor = Color.White,
-                    navigationIconContentColor = Color.White
+                    titleContentColor = Color.Black,
+                    navigationIconContentColor = Color.Black
                 )
             )
         }
@@ -64,7 +64,7 @@ fun InventoryScreen(
                 text = "LISTADO DE STOCK",
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color.Gray,
+                color = Color.Black,
                 modifier = Modifier.padding(16.dp)
             )
 
@@ -105,13 +105,13 @@ fun InventorySummaryCard(productos: List<ProductoEntity>) {
             )
             Spacer(modifier = Modifier.width(16.dp))
             Column {
-                Text("Total de Bombas en Almacén", color = Color.White.copy(alpha = 0.6f), fontSize = 12.sp)
-                Text("$totalStock Unidades", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                Text("Total de Bombas en Almacén", color = Color.Black, fontSize = 12.sp)
+                Text("$totalStock Unidades", color = Color.Black, fontSize = 24.sp, fontWeight = FontWeight.Bold)
                 if (lowStockCount > 0) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Default.Warning, null, tint = Color(0xFFF59E0B), modifier = Modifier.size(14.dp))
                         Spacer(Modifier.width(4.dp))
-                        Text("$lowStockCount productos en nivel crítico", color = Color(0xFFF59E0B), fontSize = 12.sp)
+                        Text("$lowStockCount productos en nivel crítico", color = Color.Black, fontSize = 12.sp)
                     }
                 }
             }
@@ -138,8 +138,8 @@ fun ProductStockItem(producto: ProductoEntity) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text(producto.Nombre, fontWeight = FontWeight.Bold, color = Color(0xFF1E293B))
-                Text("ID: ${producto.IdProducto} | S/ ${producto.PrecioUnitario}", fontSize = 12.sp, color = Color.Gray)
+                Text(producto.Nombre, fontWeight = FontWeight.Bold, color = Color.Black)
+                Text("ID: ${producto.IdProducto} | S/ ${producto.PrecioUnitario}", fontSize = 12.sp, color = Color.Black)
             }
             
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -147,7 +147,7 @@ fun ProductStockItem(producto: ProductoEntity) {
                     text = "${producto.Stock}",
                     fontSize = 20.sp,
                     fontWeight = FontWeight.ExtraBold,
-                    color = statusColor
+                    color = Color.Black
                 )
                 Text(
                     text = when {
@@ -157,7 +157,7 @@ fun ProductStockItem(producto: ProductoEntity) {
                     },
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Bold,
-                    color = statusColor
+                    color = Color.Black
                 )
             }
         }

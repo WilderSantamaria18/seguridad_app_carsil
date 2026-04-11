@@ -28,13 +28,16 @@ object CarsilColors {
     val PrimaryLight = Color(0xFFEEF0FD)
     val Background = Color(0xFFF7F7F8) // Fondo general
     val Surface = Color(0xFFFFFFFF) // Blanco sólido
-    val TextPrimary = Color(0xFF1A1A2E) // Negro intenso
-    val TextSecondary = Color(0xFF6B7280) // Gris etiquetas
+    val TextPrimary = Color.Black // Negro principal
+    val TextSecondary = Color.Black // Negro secundario para consistencia
     val Stroke = Color(0xFFE5E5E5) // Borde fino
-    val Gray400 = Color(0xFFADB5BD)
+    val Gray400 = Color.Black
+    val TextMuted = Color.Black
     val Success = Color(0xFF10B981)
+    val SuccessLight = Color(0xFFD1FAE5) // Fondo éxito
     val Warning = Color(0xFFF59E0B)
     val Danger = Color(0xFFEF4444)
+    val DangerLight = Color(0xFFFEE2E2) // Fondo error
 }
 
 object CarsilShapes {

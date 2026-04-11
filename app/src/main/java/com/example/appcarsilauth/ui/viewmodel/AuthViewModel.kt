@@ -11,6 +11,7 @@ import com.example.appcarsilauth.data.local.entity.AuditLog
 import com.example.appcarsilauth.data.remote.RailwayDatabase
 import com.example.appcarsilauth.domain.use_case.ValidateLockoutUseCase
 import com.example.appcarsilauth.util.JwtTokenManager
+import com.example.appcarsilauth.util.LoginPreferences
 import java.util.Locale
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -25,14 +26,17 @@ sealed class AuthState {
     data class LockedOut(val remainingTimeMs: Long) : AuthState()
     data class Error(val message: String) : AuthState()
     object SuccessAnimation : AuthState()
-    data class Success(val tokenJwt: String, val email: String, val roleId: Int) : AuthState()
+    data class Success(val tokenJwt: String, val email: String, val roleId: Int, val userName: String) : AuthState()
 }
 
 class AuthViewModel(
-        private val validateLockoutUseCase: ValidateLockoutUseCase,
-        private val auditDao: AuditDao,
-        private val intranetDao: IntranetDao
+    private val validateLockoutUseCase: ValidateLockoutUseCase,
+    private val auditDao: AuditDao,
+    private val intranetDao: IntranetDao,
+    private val loginPreferences: LoginPreferences
 ) : ViewModel() {
+
+
 
     private val _authState = MutableStateFlow<AuthState>(AuthState.Idle)
     val authState: StateFlow<AuthState> = _authState.asStateFlow()
@@ -47,6 +51,15 @@ class AuthViewModel(
     var isCaptchaVerified by mutableStateOf(false)
     var isCaptchaModalVisible by mutableStateOf(false)
     var captchaAttemptsInModal by mutableStateOf(0)
+
+    init {
+        // Cargar correo recordado al iniciar
+        val savedEmail = loginPreferences.getEmail()
+        if (savedEmail != null) {
+            email = savedEmail
+            rememberMe = true
+        }
+    }
 
     // Flujo de pasos (BBVA Style)
     var loginStep by mutableStateOf(1) // 1: Email, 2: Pass/Biometry
@@ -83,13 +96,21 @@ class AuthViewModel(
     }
 
     private fun clearInputs() {
-        email = ""
+        // NO limpiamos email ni rememberMe aquí para que persistan si hubo éxito
         pin = ""
         userCaptchaInput = ""
         captchaAttemptsInModal = 0
         isCaptchaVerified = false
         loginStep = 1
-        identifiedUserName = ""
+        // identifiedUserName se limpia en logout, no aquí para no afectar el Dashboard inicial
+    }
+
+    private fun handleRememberMePersistence(emailToSave: String) {
+        if (rememberMe) {
+            loginPreferences.saveEmail(emailToSave)
+        } else {
+            loginPreferences.clearEmail()
+        }
     }
 
     fun backToStep1() {
@@ -214,46 +235,54 @@ class AuthViewModel(
                                         remoteUser["IdUsuario"] as Int
                                 )
 
+                        val finalEmail = remoteUser["Correo"] as? String ?: normalizedEmail
+                        val finalRole = if (remoteUser["Rol"] == "Administrador") 1 else 2
+                        val finalName = identifiedUserName 
+
                         isCaptchaModalVisible = false
                         _authState.value = AuthState.SuccessAnimation
                         registerAuditLog(normalizedEmail, "LOGIN_SUCCESS_REMOTE", "AUTH_MODULE")
-
-                        val finalEmail = remoteUser["Correo"] as String
-                        val finalRole = if (remoteUser["Rol"] == "Administrador") 1 else 2
+                        
+                        handleRememberMePersistence(finalEmail)
                         clearInputs()
 
                         delay(4000)
-                        _authState.value =
-                                AuthState.Success(
-                                        tokenJwt = jwtToken,
-                                        email = finalEmail,
-                                        roleId = finalRole
-                                )
+                        _authState.value = AuthState.Success(
+                            tokenJwt = jwtToken,
+                            email = finalEmail,
+                            roleId = finalRole,
+                            userName = finalName
+                        )
                     } else {
                         // Respaldo local si no está en nube en este paso crítico
                         val usuario = intranetDao.getUserByEmail(normalizedEmail)
                         if (usuario != null) {
                             validateLockoutUseCase.onSuccessfulLogin(normalizedEmail)
-                            val jwtToken =
-                                    JwtTokenManager.generateToken(
-                                            usuario.Correo,
-                                            usuario.IdRol,
-                                            usuario.IdUsuario
-                                    )
+                            val jwtToken = JwtTokenManager.generateToken(
+                                usuario.Correo,
+                                usuario.IdRol,
+                                usuario.IdUsuario
+                            )
+                            
                             isCaptchaModalVisible = false
                             _authState.value = AuthState.SuccessAnimation
-                            val finalEmail = usuario.Correo
-                            val finalRole = usuario.IdRol
+                            
+                            handleRememberMePersistence(usuario.Correo)
+                            val nameToPass = "${usuario.Nombres} ${usuario.Apellidos}"
                             clearInputs()
+
                             delay(4000)
-                            _authState.value =
-                                    AuthState.Success(
-                                            tokenJwt = jwtToken,
-                                            email = finalEmail,
-                                            roleId = finalRole
-                                    )
+                            _authState.value = AuthState.Success(
+                                tokenJwt = jwtToken,
+                                email = usuario.Correo,
+                                roleId = usuario.IdRol,
+                                userName = nameToPass
+                            )
+                        } else {
+                            _authState.value = AuthState.Error("Usuario no encontrado localmente.")
                         }
                     }
+
                 } catch (e: Exception) {
                     _authState.value = AuthState.Error("Error finalizando sesión remota.")
                 }
@@ -317,12 +346,18 @@ class AuthViewModel(
                     val jwtToken = JwtTokenManager.generateToken(finalEmail, finalRole, finalId)
                     _authState.value = AuthState.SuccessAnimation
                     registerAuditLog(finalEmail, "LOGIN_BIOMETRIC_SUCCESS", "AUTH_MODULE")
+                    
+                    handleRememberMePersistence(finalEmail)
+                    // Capturar nombre antes de un posible clear futuro (aunque biometría no suele llamar clearInputs)
+                    val nameToPass = identifiedUserName.ifEmpty { finalEmail }
+                    
                     delay(4000)
                     _authState.value =
                             AuthState.Success(
                                     tokenJwt = jwtToken,
                                     email = finalEmail,
-                                    roleId = finalRole
+                                    roleId = finalRole,
+                                    userName = nameToPass
                             )
                 } else {
                     _authState.value = AuthState.Error("Falla crítica de identidad.")
@@ -343,7 +378,7 @@ class AuthViewModel(
                                 currentState.roleId,
                                 1 /* userId simulado o extraido */
                         )
-                _authState.value = currentState.copy(tokenJwt = newToken)
+                _authState.value = currentState.copy(tokenJwt = newToken, userName = currentState.userName)
                 registerAuditLog(currentState.email, "TOKEN_REFRESH", "AUTH_MODULE")
             }
         }

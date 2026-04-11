@@ -24,6 +24,8 @@ import androidx.compose.ui.text.input.*
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.appcarsilauth.ui.components.CarsilColors
+import com.example.appcarsilauth.ui.components.CarsilShapes
 import com.example.appcarsilauth.ui.components.CaptchaComponent
 import com.example.appcarsilauth.ui.viewmodel.AuthState
 import com.example.appcarsilauth.ui.viewmodel.AuthViewModel
@@ -38,9 +40,7 @@ fun LoginScreen(
     val authState by viewModel.authState.collectAsState()
     var passwordVisible by remember { mutableStateOf(false) }
 
-    val backgroundBrush = Brush.verticalGradient(
-        colors = listOf(Color(0xFFF8F9FA), Color(0xFFE9ECEF))
-    )
+    val backgroundSolid = CarsilColors.Background
 
     Scaffold(
         containerColor = Color.Transparent
@@ -48,7 +48,7 @@ fun LoginScreen(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(backgroundBrush)
+                .background(backgroundSolid)
                 .padding(padding)
         ) {
             Canvas(modifier = Modifier.fillMaxSize()) {
@@ -98,7 +98,7 @@ fun LoginScreen(
                             Text(
                                 text = "Gestión Empresarial Inteligente\nIngresa tu correo para comenzar.",
                                 fontSize = 15.sp,
-                                color = Color(0xFF455A64),
+                                color = Color.Black,
                                 textAlign = TextAlign.Center,
                                 modifier = Modifier.padding(top = 4.dp)
                             )
@@ -109,7 +109,7 @@ fun LoginScreen(
                                 value = viewModel.email,
                                 onValueChange = { viewModel.onEmailChange(it) },
                                 modifier = Modifier.fillMaxWidth(),
-                                label = { Text("Usuario o Correo", color = Color(0xFF607D8B)) },
+                                label = { Text("Correo electrónico", color = Color.Black) },
                                 shape = RoundedCornerShape(16.dp),
                                 singleLine = true,
                                 leadingIcon = { Icon(Icons.Default.AlternateEmail, null, tint = Color.Black) },
@@ -122,25 +122,49 @@ fun LoginScreen(
                                     focusedLabelColor = Color.Black
                                 )
                             )
+                            
+                            Spacer(modifier = Modifier.height(12.dp))
 
-                            Spacer(modifier = Modifier.height(24.dp))
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { viewModel.rememberMe = !viewModel.rememberMe },
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Checkbox(
+                                    checked = viewModel.rememberMe,
+                                    onCheckedChange = { viewModel.rememberMe = it },
+                                    colors = CheckboxDefaults.colors(
+                                        checkedColor = CarsilColors.Primary,
+                                        uncheckedColor = Color.Black
+                                    )
+                                )
+                                Text(
+                                    text = "Recuérdame",
+                                    color = Color.Black,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(16.dp))
 
                             Button(
                                 onClick = { viewModel.identifyUser() },
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(58.dp)
-                                    .shadow(8.dp, RoundedCornerShape(29.dp)),
-                                shape = RoundedCornerShape(29.dp),
+                                    .height(58.dp),
+                                shape = CarsilShapes.Small,
+                                elevation = ButtonDefaults.buttonElevation(0.dp, 0.dp),
                                 colors = ButtonDefaults.buttonColors(
-                                    containerColor = Color.Black,
-                                    contentColor = Color.White
+                                    containerColor = CarsilColors.Primary,
+                                    contentColor = Color.Black
                                 )
                             ) {
                                 if (authState is AuthState.Loading) {
                                     CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
                                 } else {
-                                    Text("Identificarme", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                                    Text("IDENTIFICARME", fontSize = 16.sp, fontWeight = FontWeight.Bold)
                                 }
                             }
                         } else {
@@ -154,7 +178,7 @@ fun LoginScreen(
                                         Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = Color.Black, modifier = Modifier.size(20.dp))
                                     }
                                     Spacer(Modifier.width(16.dp))
-                                    Text("Cambiar cuenta", fontSize = 14.sp, color = Color(0xFF455A64))
+                                        Text("Cambiar cuenta", fontSize = 14.sp, color = Color.Black)
                                 }
                                 
                                 Spacer(modifier = Modifier.height(40.dp))
@@ -162,7 +186,7 @@ fun LoginScreen(
                                 Text(
                                     text = "Bienvenido al sistema,",
                                     fontSize = 18.sp,
-                                    color = Color(0xFF455A64)
+                                    color = Color.Black
                                 )
                                 Text(
                                     text = viewModel.identifiedUserName,
@@ -178,7 +202,7 @@ fun LoginScreen(
                                     value = viewModel.pin,
                                     onValueChange = { viewModel.onPinChange(it) },
                                     modifier = Modifier.fillMaxWidth(),
-                                    label = { Text("Ingresa tu contraseña", color = Color(0xFF607D8B)) },
+                                    label = { Text("Ingresa tu contraseña", color = Color.Black) },
                                     visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                                     trailingIcon = {
                                         IconButton(onClick = { passwordVisible = !passwordVisible }) {
@@ -203,18 +227,18 @@ fun LoginScreen(
                                     onClick = { viewModel.preVerifyLogin() },
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .height(58.dp)
-                                        .shadow(8.dp, RoundedCornerShape(29.dp)),
-                                    shape = RoundedCornerShape(29.dp),
+                                        .height(58.dp),
+                                    shape = CarsilShapes.Small,
+                                    elevation = ButtonDefaults.buttonElevation(0.dp, 0.dp),
                                     colors = ButtonDefaults.buttonColors(
-                                        containerColor = Color.Black,
-                                        contentColor = Color.White
+                                        containerColor = CarsilColors.Primary,
+                                        contentColor = Color.Black
                                     )
                                 ) {
                                     if (authState is AuthState.Loading && !viewModel.isCaptchaModalVisible) {
                                         CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
                                     } else {
-                                        Text("Entrar", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                                        Text("ENTRAR", fontSize = 16.sp, fontWeight = FontWeight.Bold)
                                     }
                                 }
 
@@ -245,7 +269,7 @@ fun LoginScreen(
                                         Text(
                                             text = if (isBiometricEnrolledForThisUser) "Acceder con Biometría" else "Huella no configurada",
                                             fontWeight = FontWeight.Bold,
-                                            color = if (isBiometricEnrolledForThisUser) Color.Black else Color.Gray.copy(alpha = 0.4f),
+                                            color = Color.Black,
                                             fontSize = 15.sp
                                         )
                                     }
@@ -259,7 +283,7 @@ fun LoginScreen(
                     Spacer(modifier = Modifier.height(20.dp))
                     Text(
                         text = (authState as AuthState.Error).message,
-                        color = Color.Red,
+                        color = Color.Black,
                         fontSize = 13.sp,
                         textAlign = TextAlign.Center,
                         fontWeight = FontWeight.Bold
@@ -272,27 +296,42 @@ fun LoginScreen(
     if (viewModel.isCaptchaModalVisible) {
         AlertDialog(
             onDismissRequest = { viewModel.dismissCaptchaModal() },
-            title = { Text("Seguridad Adicional", fontWeight = FontWeight.ExtraBold, color = Color.Black) },
+            title = { 
+                Text(
+                    "Seguridad Adicional", 
+                    fontWeight = FontWeight.Bold, 
+                    color = CarsilColors.TextPrimary,
+                    fontSize = 18.sp
+                ) 
+            },
             text = {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("Solo un paso más. Resuelve el captcha para verificar tu ingreso.", color = Color(0xFF263238))
+                    Text(
+                        "Resuelve el captcha para verificar tu ingreso.", 
+                        color = CarsilColors.TextSecondary,
+                        textAlign = TextAlign.Center
+                    )
                     Spacer(Modifier.height(20.dp))
                     CaptchaComponent(onCaptchaGenerated = { viewModel.setGeneratedCaptcha(it) })
-                    Spacer(Modifier.height(12.dp))
+                    Spacer(Modifier.height(16.dp))
                     OutlinedTextField(
                         value = viewModel.userCaptchaInput,
                         onValueChange = { viewModel.onCaptchaInputChange(it) },
                         modifier = Modifier.fillMaxWidth(),
-                        placeholder = { Text("Código de imagen", color = Color.Gray) },
-                        shape = RoundedCornerShape(12.dp),
+                        placeholder = {
+                            Text(
+                                "Código de imagen",
+                                color = Color.Black,
+                                fontWeight = FontWeight.Bold
+                            )
+                        },
+                        shape = CarsilShapes.Small,
+                        singleLine = true,
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedTextColor = Color.Black,
-                            unfocusedTextColor = Color.Black,
-                            focusedBorderColor = Color.Black,
-                            unfocusedBorderColor = Color.DarkGray,
-                            cursorColor = Color.Black,
-                            focusedLabelColor = Color.Black,
-                            unfocusedLabelColor = Color.Black
+                            focusedBorderColor = CarsilColors.Primary,
+                            unfocusedBorderColor = CarsilColors.Stroke,
+                            focusedTextColor = CarsilColors.TextPrimary,
+                            unfocusedTextColor = CarsilColors.TextPrimary
                         )
                     )
                 }
@@ -300,33 +339,35 @@ fun LoginScreen(
             confirmButton = {
                 Button(
                     onClick = { viewModel.finalizeLoginWithCaptcha() },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color.Black, contentColor = Color.White)
+                    shape = CarsilShapes.Small,
+                    colors = ButtonDefaults.buttonColors(containerColor = CarsilColors.Primary, contentColor = Color.Black)
                 ) {
-                    Text("Verificar")
+                    Text("VERIFICAR")
                 }
             },
-            containerColor = Color.White
+            containerColor = CarsilColors.Surface,
+            tonalElevation = 0.dp
         )
     }
 
     if (authState is AuthState.LockedOut) {
         Box(
-            modifier = Modifier.fillMaxSize().background(Color.Black).padding(32.dp),
+            modifier = Modifier.fillMaxSize().background(Color.White).padding(32.dp),
             contentAlignment = Alignment.Center
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Icon(Icons.Default.Timer, null, tint = Color.White, modifier = Modifier.size(80.dp))
+                Icon(Icons.Default.Timer, null, tint = Color.Black, modifier = Modifier.size(80.dp))
                 Spacer(Modifier.height(24.dp))
-                Text("Seguridad Activada", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                Text("Seguridad Activada", color = Color.Black, fontSize = 24.sp, fontWeight = FontWeight.Bold)
                 Text(
                     "Demasiados intentos. Espera para reintentar:",
-                    color = Color.Gray,
+                    color = Color.Black,
                     textAlign = TextAlign.Center
                 )
                 val state = authState as AuthState.LockedOut
                 Text(
                     text = String.format("%02d:%02d", (state.remainingTimeMs/1000)/60, (state.remainingTimeMs/1000)%60),
-                    color = Color.White,
+                    color = Color.Black,
                     fontSize = 50.sp,
                     fontWeight = FontWeight.Black
                 )
@@ -349,9 +390,9 @@ fun LoginScreen(
                 modifier = Modifier
                     .fillMaxWidth(0.85f)
                     .wrapContentHeight(),
-                shape = RoundedCornerShape(28.dp),
-                color = Color.White,
-                shadowElevation = 20.dp
+                shape = CarsilShapes.Medium,
+                color = CarsilColors.Surface,
+                tonalElevation = 0.dp
             ) {
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
@@ -360,16 +401,16 @@ fun LoginScreen(
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(100.dp)
+                            .size(80.dp)
                             .clip(CircleShape)
-                            .background(Color(0xFF00C853)),
+                            .background(CarsilColors.Success),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             Icons.Default.Check,
                             null,
                             tint = Color.White,
-                            modifier = Modifier.size(60.dp)
+                            modifier = Modifier.size(48.dp)
                         )
                     }
 
@@ -377,9 +418,9 @@ fun LoginScreen(
 
                     Text(
                         "¡Acceso Concedido!",
-                        fontSize = 24.sp,
-                        fontWeight = FontWeight.Black,
-                        color = Color.Black
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = CarsilColors.TextPrimary
                     )
 
                     Spacer(modifier = Modifier.height(8.dp))
@@ -387,7 +428,7 @@ fun LoginScreen(
                     Text(
                         "Identidad verificada correctamente.\nCargando panel de gestión...",
                         fontSize = 14.sp,
-                        color = Color.Gray,
+                        color = CarsilColors.TextSecondary,
                         textAlign = TextAlign.Center
                     )
                     
@@ -395,8 +436,8 @@ fun LoginScreen(
                     
                     LinearProgressIndicator(
                         modifier = Modifier.fillMaxWidth().height(4.dp).clip(CircleShape),
-                        color = Color.Black,
-                        trackColor = Color.LightGray
+                        color = CarsilColors.Primary,
+                        trackColor = CarsilColors.PrimaryLight
                     )
                 }
             }

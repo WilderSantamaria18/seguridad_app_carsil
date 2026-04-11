@@ -35,23 +35,48 @@ fun ProfileScreen(
     onRemoveBiometric: () -> Unit,
     onBack: () -> Unit
 ) {
+    val roleName = when (roleId) {
+        1 -> "Administrador"
+        2 -> "Empleado"
+        3 -> "Supervisor"
+        4 -> "Vendedor"
+        else -> "Usuario"
     }
 
     Scaffold(
         containerColor = CarsilColors.Background,
         topBar = {
-            TopAppBar(
-                title = { Text("Mi Perfil", fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Volver")
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color.White)
+                    .windowInsetsPadding(WindowInsets.statusBars)
+                    .padding(top = 28.dp, bottom = 12.dp)
+                    .padding(horizontal = 24.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(
+                        onClick = onBack,
+                        modifier = Modifier
+                            .size(36.dp)
+                            .border(1.dp, CarsilColors.Stroke, CircleShape)
+                    ) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Volver", tint = CarsilColors.Primary, modifier = Modifier.size(18.dp))
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = CarsilColors.Background,
-                    titleContentColor = CarsilColors.TextPrimary
-                )
-            )
+                    
+                    Spacer(modifier = Modifier.width(16.dp))
+                    
+                    Text(
+                        "Mi Perfil",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = CarsilColors.TextPrimary
+                    )
+                }
+            }
         }
     ) { padding ->
         Column(
@@ -64,17 +89,17 @@ fun ProfileScreen(
         ) {
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Avatar
+            // Avatar (Flat Solid Color)
             Box(
                 modifier = Modifier
                     .size(100.dp)
                     .clip(CircleShape)
-                    .background(Color.Black),
+                    .background(CarsilColors.Primary),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = email.first().uppercase(),
-                    color = Color.White,
+                    text = userName.ifEmpty { email }.first().uppercase(),
+                    color = Color.Black,
                     fontSize = 40.sp,
                     fontWeight = FontWeight.Bold
                 )
@@ -86,21 +111,12 @@ fun ProfileScreen(
                 text = userName,
                 fontSize = 24.sp,
                 fontWeight = FontWeight.Bold,
-                color = CarsilColors.TextPrimary
+                color = CarsilColors.TextPrimary,
+                maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center
             )
 
-            Text(
-                text = roleName,
-                fontSize = 14.sp,
-                color = CarsilColors.TextSecondary
-            )
-
-            Text(
-                text = email,
-                fontSize = 14.sp,
-                color = CarsilColors.TextSecondary,
-                modifier = Modifier.padding(top = 4.dp)
-            )
 
             Spacer(modifier = Modifier.height(40.dp))
 
@@ -131,7 +147,7 @@ fun ProfileScreen(
                             modifier = Modifier
                                 .size(48.dp)
                                 .clip(RoundedCornerShape(12.dp))
-                                .background(if (isBiometricEnrolled) Color(0xFF00C853) else Color.Black),
+                                .background(if (isBiometricEnrolled) CarsilColors.Success else CarsilColors.Primary),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
@@ -152,9 +168,9 @@ fun ProfileScreen(
                                 color = CarsilColors.TextPrimary
                             )
                             Text(
-                                if (isBiometricEnrolled) "Activada y enlazada" else "No configurada",
+                                if (isBiometricEnrolled) "Activada" else "No configurada",
                                 fontSize = 13.sp,
-                                color = if (isBiometricEnrolled) Color(0xFF00C853) else CarsilColors.TextSecondary
+                                color = Color.Black
                             )
                         }
                     }
@@ -177,20 +193,25 @@ fun ProfileScreen(
                         // Dispositivo sin biometría
                         Surface(
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(12.dp),
-                            color = Color(0xFFFFF3E0)
+                            shape = CarsilShapes.Small,
+                            color = CarsilColors.PrimaryLight
                         ) {
                             Row(
-                                modifier = Modifier.padding(12.dp),
+                                modifier = Modifier.padding(16.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Icon(Icons.Default.Warning, null, tint = Color(0xFFE65100), modifier = Modifier.size(20.dp))
-                                Spacer(modifier = Modifier.width(8.dp))
+                                Icon(
+                                    Icons.Default.Info, 
+                                    null, 
+                                    tint = CarsilColors.Primary, 
+                                    modifier = Modifier.size(24.dp)
+                                )
+                                Spacer(modifier = Modifier.width(16.dp))
                                 Text(
-                                    "Tu dispositivo no tiene biometría configurada. Ve a Ajustes > Seguridad para registrar una huella.",
-                                    fontSize = 12.sp,
-                                    color = Color(0xFFE65100),
-                                    lineHeight = 16.sp
+                                    "Tu dispositivo no cuenta con biometría activa o disponible. Para habilitar esta función, regístrala en los Ajustes de Seguridad de tu sistema operativo.",
+                                    fontSize = 13.sp,
+                                    color = CarsilColors.TextSecondary,
+                                    lineHeight = 18.sp
                                 )
                             }
                         }
@@ -199,28 +220,30 @@ fun ProfileScreen(
                         Button(
                             onClick = onRemoveBiometric,
                             modifier = Modifier.fillMaxWidth().height(48.dp),
-                            shape = RoundedCornerShape(12.dp),
+                            shape = CarsilShapes.Small,
+                            elevation = ButtonDefaults.buttonElevation(0.dp, 0.dp),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = Color.White,
-                                contentColor = Color.Red
+                                containerColor = Color.Transparent,
+                                contentColor = Color.Black
                             ),
-                            border = BorderStroke(1.dp, Color.Red)
+                            border = BorderStroke(1.dp, CarsilColors.Danger)
                         ) {
                             Icon(Icons.Default.DeleteForever, null, modifier = Modifier.size(20.dp))
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("Desactivar Huella", fontWeight = FontWeight.Bold)
+                            Text("DESACTIVAR HUELLA", fontWeight = FontWeight.Bold)
                         }
                     } else {
                         // Botón para ACTIVAR
                         Button(
                             onClick = onEnrollBiometric,
                             modifier = Modifier.fillMaxWidth().height(48.dp),
-                            shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color.Black)
+                            shape = CarsilShapes.Small,
+                            elevation = ButtonDefaults.buttonElevation(0.dp, 0.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = CarsilColors.Primary)
                         ) {
                             Icon(Icons.Default.Fingerprint, null, tint = Color.White, modifier = Modifier.size(20.dp))
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("Activar Huella Dactilar", fontWeight = FontWeight.Bold, color = Color.White)
+                            Text("ACTIVAR HUELLA DACTILAR", fontWeight = FontWeight.Bold, color = Color.Black)
                         }
                     }
                 }
@@ -229,9 +252,10 @@ fun ProfileScreen(
             Spacer(modifier = Modifier.height(24.dp))
 
             // Info adicional de seguridad
-            ProfileInfoRow(Icons.Default.Shield, "Autenticación", "JWT + CAPTCHA + Biometría")
-            ProfileInfoRow(Icons.Default.Lock, "Sesión", "Expira por inactividad (10 min)")
-            ProfileInfoRow(Icons.Default.Security, "Cifrado", "AES-256 + HMAC-SHA256")
+            ProfileInfoRow(Icons.Default.Badge, "Rol", roleName)
+            ProfileInfoRow(Icons.Default.Shield, "Autenticación", "Activa")
+            ProfileInfoRow(Icons.Default.Lock, "Sesión", "Protegida")
+            ProfileInfoRow(Icons.Default.EnhancedEncryption, "Cifrado", "AES-256")
 
             Spacer(modifier = Modifier.height(24.dp))
 
@@ -240,37 +264,45 @@ fun ProfileScreen(
                 onClick = onGoToChangePassword,
                 modifier = Modifier.fillMaxWidth().height(56.dp),
                 shape = CarsilShapes.Small,
+                elevation = ButtonDefaults.buttonElevation(0.dp, 0.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = CarsilColors.Primary)
             ) {
-                Icon(Icons.Default.Password, null, tint = Color.White)
+                    Icon(Icons.Default.Password, null, tint = Color.Black)
                 Spacer(modifier = Modifier.width(12.dp))
-                Text("CAMBIAR CONTRASEÑA", fontWeight = FontWeight.Bold, color = Color.White)
+                    Text("CAMBIAR CONTRASEÑA", fontWeight = FontWeight.Bold, color = Color.Black)
             }
 
             Spacer(modifier = Modifier.height(32.dp))
         }
     }
 }
-
 @Composable
 private fun ProfileInfoRow(icon: ImageVector, label: String, value: String) {
     Surface(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp),
-        shape = RoundedCornerShape(12.dp),
-        color = Color.White,
+        shape = CarsilShapes.Small,
+        color = CarsilColors.Surface,
         border = BorderStroke(1.dp, CarsilColors.Stroke)
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(icon, null, tint = Color.Black, modifier = Modifier.size(20.dp))
+            Icon(icon, null, tint = CarsilColors.Primary, modifier = Modifier.size(20.dp))
             Spacer(modifier = Modifier.width(12.dp))
-            Text(label, fontWeight = FontWeight.Medium, fontSize = 14.sp, color = CarsilColors.TextPrimary)
+            Text(label, fontWeight = FontWeight.Medium, fontSize = 14.sp, color = CarsilColors.TextPrimary, modifier = Modifier.width(100.dp))
             Spacer(modifier = Modifier.weight(1f))
-            Text(value, fontSize = 12.sp, color = CarsilColors.TextSecondary)
+            Text(
+                value, 
+                fontSize = 12.sp, 
+                color = CarsilColors.TextSecondary,
+                maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                textAlign = TextAlign.End,
+                modifier = Modifier.weight(1f)
+            )
         }
     }
 }

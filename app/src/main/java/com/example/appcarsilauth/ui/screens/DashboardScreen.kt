@@ -2,6 +2,8 @@ package com.example.appcarsilauth.ui.screens
 
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -12,6 +14,8 @@ import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -26,18 +30,27 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.appcarsilauth.ui.components.CarsilColors
 import com.example.appcarsilauth.ui.components.CarsilShapes
+import com.example.appcarsilauth.ui.components.StatCard
 import java.math.BigDecimal
 
 @Composable
 fun DashboardScreen(
     email: String = "admin@carsil.com",
+    userName: String = "Administrador CARSIL",
     roleId: Int = 1,
     allowedMenus: List<String> = emptyList(),
+    stats: Map<String, Int> = emptyMap(),
+    activity: List<Int> = emptyList(),
+    activityLabels: List<String> = listOf("L", "M", "M", "J", "V", "S", "D"),
+    recentProformas: List<Map<String, Any>> = emptyList(),
     onGoToClients: () -> Unit = {},
     onGoToProducts: () -> Unit = {},
     onGoToProforma: () -> Unit = {},
     onGoToProfile: () -> Unit = {},
+    onMenuClick: () -> Unit = {},
     onLogout: () -> Unit = {},
+    onRefresh: () -> Unit = {},
+    isLoading: Boolean = false,
     verifiedTotalIncome: BigDecimal = BigDecimal("23824.20")
 ) {
     val canUseClients = if (allowedMenus.isEmpty()) roleId != 2 else allowedMenus.contains("Clientes")
@@ -53,179 +66,369 @@ fun DashboardScreen(
     }
 
     Scaffold(
-        containerColor = Color(0xFFF8F9FA) // Fondo gris extra claro muy elegante
+        containerColor = CarsilColors.Background,
+        topBar = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color.White)
+                    .windowInsetsPadding(WindowInsets.statusBars)
+                    .padding(top = 28.dp, bottom = 12.dp)
+                    .padding(horizontal = 24.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    IconButton(
+                        onClick = onMenuClick,
+                        modifier = Modifier
+                            .size(36.dp)
+                            .border(1.dp, CarsilColors.Stroke, CircleShape)
+                    ) {
+                        Icon(Icons.Default.Menu, "Menú", tint = CarsilColors.Primary, modifier = Modifier.size(18.dp))
+                    }
+                    
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            "CARSIL SGE",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = CarsilColors.TextPrimary,
+                            letterSpacing = 1.sp
+                        )
+                        Text(
+                            "Panel Principal",
+                            fontSize = 11.sp,
+                            color = CarsilColors.TextSecondary
+                        )
+                    }
+
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(
+                            onClick = onRefresh,
+                            modifier = Modifier.size(36.dp),
+                            enabled = !isLoading
+                        ) {
+                            Icon(
+                                Icons.Default.Refresh, 
+                                "Actualizar", 
+                                tint = CarsilColors.Primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                        
+                        Spacer(modifier = Modifier.width(8.dp))
+
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .background(CarsilColors.Primary),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                userName.take(1).uppercase(),
+                                color = Color.Black,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
     ) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(horizontal = 24.dp)
         ) {
-            Spacer(modifier = Modifier.height(24.dp))
-
-            // HEADER CORPORATIVO
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .size(50.dp)
-                            .clip(CircleShape)
-                            .background(Color.Black),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = email.first().uppercase(),
-                            color = Color.White,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 20.sp
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Column {
-                        Text(
-                            text = "ERP CARSIL",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.Gray,
-                            letterSpacing = 1.sp
-                        )
-                        Text(
-                            text = roleName,
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Black,
-                            color = Color.Black
-                        )
-                    }
-                }
-                
-                IconButton(
-                    onClick = onLogout,
-                    modifier = Modifier
-                        .clip(CircleShape)
-                        .background(Color.White)
-                        .border(1.dp, Color.LightGray, CircleShape)
-                ) {
-                    Icon(Icons.AutoMirrored.Filled.Logout, "Salir", tint = Color.Red)
-                }
+            // INDICADOR DE CARGA
+            if (isLoading) {
+                LinearProgressIndicator(
+                    modifier = Modifier.fillMaxWidth().height(3.dp),
+                    color = CarsilColors.Primary,
+                    trackColor = CarsilColors.PrimaryLight
+                )
             }
-
-            Spacer(modifier = Modifier.height(32.dp))
-
-            // TARJETA DE INGRESOS (SOLO PARA ADMIN/SUP)
-            if (roleId == 1 || roleId == 3) {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .shadow(12.dp, RoundedCornerShape(24.dp)),
-                    shape = RoundedCornerShape(24.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.Black)
-                ) {
-                    Column(modifier = Modifier.padding(24.dp)) {
-                        Row(
-                            Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                "INGRESOS VERIFICADOS",
-                                color = Color.White.copy(alpha = 0.6f),
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                letterSpacing = 1.sp
-                            )
-                            Icon(Icons.Default.TrendingUp, null, tint = Color(0xFF00C853), modifier = Modifier.size(20.dp))
-                        }
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            "S/ ${verifiedTotalIncome.toPlainString()}",
-                            color = Color.White,
-                            fontSize = 32.sp,
-                            fontWeight = FontWeight.Black
-                        )
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Surface(
-                            color = Color.White.copy(alpha = 0.1f),
-                            shape = RoundedCornerShape(8.dp)
-                        ) {
-                            Text(
-                                "Actualizado ahora",
-                                color = Color.White.copy(alpha = 0.8f),
-                                fontSize = 10.sp,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                            )
-                        }
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(32.dp))
-
-            Text(
-                text = "Modulos de Gestion",
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.Gray,
-                letterSpacing = 1.sp
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // GRILLA DE MODULOS
+            
             Column(
                 modifier = Modifier
                     .fillMaxSize()
                     .verticalScroll(rememberScrollState())
             ) {
-                // Fila 1
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    if (canUseClients) {
-                        MenuCard("Clientes", Icons.Default.Groups, onGoToClients, Modifier.weight(1f))
-                    }
-                    if (canUseProducts) {
-                        MenuCard("Inventario", Icons.Default.Inventory, onGoToProducts, Modifier.weight(1f))
-                    }
-                }
-                
-                Spacer(modifier = Modifier.height(16.dp))
-                
-                // Fila 2
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    if (canUseProformas) {
-                        MenuCard("Proformas", Icons.Default.ReceiptLong, onGoToProforma, Modifier.weight(1f))
-                    }
-                    // Siempre visible: Perfil
-                    MenuCard("Mi Cuenta", Icons.Default.AccountCircle, onGoToProfile, Modifier.weight(1f))
+                // WELCOME HEADER
+                Column(modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp)) {
+                    Text(
+                        "¡Hola, $userName!",
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = CarsilColors.TextPrimary
+                    )
+                    Text(
+                        "Aquí tienes el resumen de hoy",
+                        fontSize = 14.sp,
+                        color = CarsilColors.TextSecondary
+                    )
                 }
 
-                Spacer(modifier = Modifier.height(32.dp))
-                
-                // Info de Pie
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    color = Color.White,
-                    border = BorderStroke(1.dp, Color(0xFFEEEEEE))
+                // STATS ROW
+                LazyRow(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 16.dp),
+                    contentPadding = PaddingValues(horizontal = 24.dp),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    Row(
-                        modifier = Modifier.padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(Icons.Default.Info, null, tint = Color.Gray, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(12.dp))
-                        Text(
-                            "Sistema CARSIL v4.0.2 - Acceso Seguro",
-                            fontSize = 12.sp,
-                            color = Color.Gray
+                    item {
+                        val total = stats["clientes"] ?: 0
+                        val nuevos = stats["clientes_30d"] ?: 0
+                        val trendVal = if (total > 0) (nuevos * 100f / total) else 0f
+                        StatCard(
+                            label = "Total Clientes",
+                            value = total.toString(),
+                            subLabel = "Cartera activa",
+                            icon = Icons.Default.Groups,
+                            trend = if (nuevos > 0) String.format("%.1f%%", trendVal) else "0.0%",
+                            isTrendUp = nuevos > 0
+                        )
+                    }
+                    item {
+                        val hoy = stats["proformas_hoy"] ?: 0
+                        val ayer = stats["proformas_ayer"] ?: 0
+                        val trendVal = when {
+                            ayer == 0 && hoy > 0 -> 100f
+                            ayer == 0 -> 0f
+                            else -> ((hoy - ayer) * 100f / ayer)
+                        }
+                        StatCard(
+                            label = "Proformas",
+                            value = hoy.toString(),
+                            subLabel = "Emitidas hoy",
+                            icon = Icons.Default.ReceiptLong,
+                            iconBgColor = CarsilColors.SuccessLight,
+                            iconTintColor = CarsilColors.Success,
+                            trend = String.format("%.1f%%", Math.abs(trendVal)),
+                            isTrendUp = trendVal >= 0
+                        )
+                    }
+                    item {
+                        val total = stats["productos"] ?: 0
+                        val nuevos = stats["productos_30d"] ?: 0
+                        val trendVal = if (total > 0) (nuevos * 100f / total) else 0f
+                        StatCard(
+                            label = "Productos",
+                            value = total.toString(),
+                            subLabel = "Stock verificado",
+                            icon = Icons.Default.Inventory,
+                            iconBgColor = Color(0xFFF3E5F5),
+                            iconTintColor = Color(0xFF8E24AA),
+                            trend = if (nuevos > 0) String.format("%.1f%%", trendVal) else "0.0%",
+                            isTrendUp = nuevos >= 0
+                        )
+                    }
+                    item {
+                        val total = stats["empleados"] ?: 0
+                        val nuevos = stats["empleados_30d"] ?: 0
+                        val trendVal = if (total > 0) (nuevos * 100f / total) else 0f
+                        StatCard(
+                            label = "Empleados",
+                            value = total.toString(),
+                            subLabel = "Personal CARSIL",
+                            icon = Icons.Default.Badge,
+                            iconBgColor = Color(0xFFFFF8E1),
+                            iconTintColor = Color(0xFFFBC02D),
+                            trend = if (nuevos > 0) String.format("%.1f%%", trendVal) else "0.0%",
+                            isTrendUp = nuevos >= 0
                         )
                     }
                 }
-                
-                Spacer(modifier = Modifier.height(40.dp))
+
+                // CHARTS SECTION
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp)
+                ) {
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = CarsilShapes.Medium,
+                        color = Color.White,
+                        border = BorderStroke(1.dp, CarsilColors.Stroke)
+                    ) {
+                        Column(modifier = Modifier.padding(20.dp)) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column {
+                                    Text(
+                                        "Actividad de Proformas",
+                                        fontSize = 15.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = CarsilColors.TextPrimary
+                                    )
+                                    Text(
+                                        "Vista semanal",
+                                        modifier = Modifier.padding(top = 8.dp),
+                                        fontSize = 11.sp,
+                                        color = CarsilColors.TextSecondary
+                                    )
+                                }
+                                Icon(Icons.Default.Timeline, null, tint = CarsilColors.Primary)
+                            }
+                            
+                            Spacer(modifier = Modifier.height(24.dp))
+                            
+                            com.example.appcarsilauth.ui.components.CarsilBarChart(
+                                data = if (activity.isEmpty()) {
+                                    List(7) { 0f }
+                                } else activity.map { it.toFloat() },
+                                labels = activityLabels,
+                                barColor = CarsilColors.Primary,
+                                unit = "Profs."
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    // RECENT PROFORMAS TABLE
+                    Text(
+                        "Proformas Recientes",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = CarsilColors.TextPrimary
+                    )
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Surface(
+                        modifier = Modifier.fillMaxWidth().heightIn(max = 280.dp),
+                        shape = CarsilShapes.Medium,
+                        color = Color.White,
+                        border = BorderStroke(1.dp, CarsilColors.Stroke)
+                    ) {
+                        if (recentProformas.isEmpty()) {
+                            Box(
+                                modifier = Modifier.fillMaxWidth().padding(40.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text("No hay registros recientes", color = CarsilColors.TextMuted, fontSize = 13.sp)
+                            }
+                        } else {
+                            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                                recentProformas.take(10).forEachIndexed { index, prof ->
+                                    RecentProformaItem(
+                                        codigo = (prof["Codigo"] ?: "#---").toString(),
+                                        cliente = (prof["Cliente"] ?: "Cliente Final").toString(),
+                                        monto = "S/ " + String.format("%.2f", (prof["Total"] as? Number)?.toDouble() ?: 0.0),
+                                        estado = (prof["Estado"] ?: "PENDIENTE").toString().uppercase(),
+                                        isLast = index == (recentProformas.take(10).size - 1)
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(32.dp))
+                    
+                    // FOOTER
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = CarsilShapes.Small,
+                        color = CarsilColors.Surface,
+                        border = BorderStroke(1.dp, CarsilColors.Stroke)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.Security, null, tint = Color.Black, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(12.dp))
+                            Text(
+                                "Panel de Gestión Seguro CARSIL SAC",
+                                fontSize = 12.sp,
+                                color = Color.Black
+                            )
+                        }
+                    }
+                    
+                    Spacer(modifier = Modifier.height(32.dp))
+                }
             }
+        }
+    }
+}
+
+@Composable
+fun RecentProformaItem(
+    codigo: String,
+    cliente: String,
+    monto: String,
+    estado: String,
+    isLast: Boolean
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 12.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = codigo, 
+                    fontWeight = FontWeight.Bold, 
+                    fontSize = 14.sp, 
+                    color = CarsilColors.TextPrimary
+                )
+                Text(
+                    text = cliente, 
+                    fontSize = 12.sp, 
+                    color = CarsilColors.TextSecondary, 
+                    maxLines = 1, 
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            
+            Column(horizontalAlignment = Alignment.End) {
+                Text(
+                    text = monto, 
+                    fontWeight = FontWeight.ExtraBold, 
+                    fontSize = 14.sp, 
+                    color = CarsilColors.TextPrimary
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Surface(
+                    color = when(estado) {
+                        "APROBADA", "VENDIDA" -> CarsilColors.SuccessLight
+                        "PENDIENTE" -> Color(0xFFFFF8E1)
+                        else -> CarsilColors.DangerLight
+                    },
+                    shape = RoundedCornerShape(20.dp)
+                ) {
+                    Text(
+                        text = estado,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Black
+                    )
+                }
+            }
+        }
+        
+        if (!isLast) {
+            Spacer(modifier = Modifier.height(12.dp))
+            HorizontalDivider(color = CarsilColors.Stroke, thickness = 0.5.dp)
         }
     }
 }
@@ -235,10 +438,9 @@ fun MenuCard(title: String, icon: ImageVector, onClick: () -> Unit, modifier: Mo
     Surface(
         onClick = onClick,
         modifier = modifier.height(130.dp),
-        shape = RoundedCornerShape(24.dp),
-        color = Color.White,
-        border = BorderStroke(1.dp, Color(0xFFEEEEEE)),
-        shadowElevation = 2.dp
+        shape = CarsilShapes.Medium,
+        color = CarsilColors.Surface,
+        border = BorderStroke(1.dp, CarsilColors.Stroke)
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -249,24 +451,24 @@ fun MenuCard(title: String, icon: ImageVector, onClick: () -> Unit, modifier: Mo
                 modifier = Modifier
                     .size(42.dp)
                     .clip(RoundedCornerShape(12.dp))
-                    .background(Color(0xFFF1F3F4)),
+                    .background(CarsilColors.PrimaryLight),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(icon, null, tint = Color.Black, modifier = Modifier.size(24.dp))
+                Icon(icon, null, tint = CarsilColors.Primary, modifier = Modifier.size(24.dp))
             }
             Spacer(modifier = Modifier.height(16.dp))
             Text(
                 text = title,
                 fontWeight = FontWeight.Bold,
                 fontSize = 15.sp,
-                color = Color.Black,
+                color = CarsilColors.TextPrimary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
             Text(
                 text = "Gestionar",
                 fontSize = 11.sp,
-                color = Color.Gray
+                color = Color.Black
             )
         }
     }

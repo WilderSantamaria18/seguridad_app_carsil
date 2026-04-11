@@ -30,7 +30,8 @@ fun ChangePasswordScreen(
 ) {
     var currentPass by remember { mutableStateOf("") }
     var newPass by remember { mutableStateOf("") }
-    var confirmPass by remember { mutableStateOf("") }
+    var isCurrentPassVisible by remember { mutableStateOf(false) }
+    var isNewPassVisible by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var isChanging by remember { mutableStateOf(false) }
 
@@ -73,7 +74,7 @@ fun ChangePasswordScreen(
                         text = "Actualizar Credenciales",
                         fontSize = 14.sp,
                         fontWeight = FontWeight.SemiBold,
-                        color = CarsilColors.Primary,
+                        color = Color.Black,
                         letterSpacing = 1.sp
                     )
                     Spacer(modifier = Modifier.height(8.dp))
@@ -98,7 +99,7 @@ fun ChangePasswordScreen(
                     if (errorMessage != null) {
                         Text(
                             text = errorMessage!!,
-                            color = CarsilColors.Danger,
+                            color = Color.Black,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
                             modifier = Modifier.padding(bottom = 12.dp)
@@ -109,7 +110,9 @@ fun ChangePasswordScreen(
                         value = currentPass,
                         onValueChange = { currentPass = it },
                         label = "Contraseña Actual",
-                        placeholder = "Escribe tu clave actual"
+                        placeholder = "Escribe tu clave actual",
+                        isVisible = isCurrentPassVisible,
+                        onToggleVisibility = { isCurrentPassVisible = !isCurrentPassVisible }
                     )
 
                     Spacer(modifier = Modifier.height(16.dp))
@@ -118,26 +121,15 @@ fun ChangePasswordScreen(
                         value = newPass,
                         onValueChange = { newPass = it },
                         label = "Nueva Contraseña",
-                        placeholder = "Mínimo 6 caracteres"
-                    )
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    FlatOutlinedTextField(
-                        value = confirmPass,
-                        onValueChange = { confirmPass = it },
-                        label = "Confirmar Contraseña",
-                        placeholder = "Repite la nueva clave"
+                        placeholder = "Mínimo 6 caracteres",
+                        isVisible = isNewPassVisible,
+                        onToggleVisibility = { isNewPassVisible = !isNewPassVisible }
                     )
 
                     Spacer(modifier = Modifier.height(32.dp))
 
                     Button(
                         onClick = {
-                            if (newPass != confirmPass) {
-                                errorMessage = "Las contraseñas no coinciden"
-                                return@Button
-                            }
                             if (newPass.length < 6) {
                                 errorMessage = "La contraseña debe tener al menos 6 caracteres"
                                 return@Button
@@ -159,7 +151,7 @@ fun ChangePasswordScreen(
                         shape = CarsilShapes.Small,
                         colors = ButtonDefaults.buttonColors(
                             containerColor = CarsilColors.Primary,
-                            contentColor = Color.White,
+                            contentColor = Color.Black,
                             disabledContainerColor = CarsilColors.Gray400
                         ),
                         enabled = !isChanging && currentPass.isNotBlank() && newPass.isNotBlank()
@@ -181,7 +173,9 @@ fun FlatOutlinedTextField(
     value: String,
     onValueChange: (String) -> Unit,
     label: String,
-    placeholder: String
+    placeholder: String,
+    isVisible: Boolean = false,
+    onToggleVisibility: () -> Unit = {}
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
         Text(
@@ -195,8 +189,24 @@ fun FlatOutlinedTextField(
             value = value,
             onValueChange = onValueChange,
             modifier = Modifier.fillMaxWidth(),
-            placeholder = { Text(placeholder, color = CarsilColors.TextSecondary, fontSize = 14.sp) },
-            visualTransformation = PasswordVisualTransformation(),
+            placeholder = {
+                Text(
+                    placeholder,
+                    color = Color.Black,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            visualTransformation = if (isVisible) androidx.compose.ui.text.input.VisualTransformation.None else PasswordVisualTransformation(),
+            trailingIcon = {
+                IconButton(onClick = onToggleVisibility) {
+                    Icon(
+                        imageVector = if (isVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                        contentDescription = if (isVisible) "Ocultar" else "Mostrar",
+                        tint = CarsilColors.TextSecondary
+                    )
+                }
+            },
             singleLine = true,
             shape = CarsilShapes.Small,
             colors = OutlinedTextFieldDefaults.colors(

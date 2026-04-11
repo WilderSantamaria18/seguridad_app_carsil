@@ -11,6 +11,8 @@ import com.example.appcarsilauth.data.local.entity.AsistenciaEntity
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import android.content.Intent
+import android.net.Uri
 import com.example.appcarsilauth.data.remote.RailwayDatabase
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -40,14 +42,52 @@ class IntranetViewModel(private val intranetDao: IntranetDao) : ViewModel() {
     private val _uiMessage = MutableStateFlow<String?>(null)
     val uiMessage: StateFlow<String?> = _uiMessage.asStateFlow()
 
+    private val _dashboardStats = MutableStateFlow<Map<String, Int>>(emptyMap())
+    val dashboardStats: StateFlow<Map<String, Int>> = _dashboardStats.asStateFlow()
+
+    private val _proformaActivity = MutableStateFlow<List<Int>>(emptyList())
+    val proformaActivity: StateFlow<List<Int>> = _proformaActivity.asStateFlow()
+
+    private val _activityLabels = MutableStateFlow<List<String>>(listOf("L", "M", "M", "J", "V", "S", "D"))
+    val activityLabels: StateFlow<List<String>> = _activityLabels.asStateFlow()
+
+    private val _activityFilter = MutableStateFlow("WEEK")
+    val activityFilter: StateFlow<String> = _activityFilter.asStateFlow()
+
+    private val _isLoading = MutableStateFlow<Boolean>(false)
+    val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
+
+    // --- REPORTES ANALÍTICOS ---
+    private val _reportKPIs = MutableStateFlow<Map<String, Any>>(emptyMap())
+    val reportKPIs: StateFlow<Map<String, Any>> = _reportKPIs.asStateFlow()
+
+    private val _proformasByState = MutableStateFlow<List<Map<String, Any>>>(emptyList())
+    val proformasByState: StateFlow<List<Map<String, Any>>> = _proformasByState.asStateFlow()
+
+    private val _topClients = MutableStateFlow<List<Map<String, Any>>>(emptyList())
+    val topClients: StateFlow<List<Map<String, Any>>> = _topClients.asStateFlow()
+
+    private val _salesByMonth = MutableStateFlow<List<Map<String, Any>>>(emptyList())
+    val salesByMonth: StateFlow<List<Map<String, Any>>> = _salesByMonth.asStateFlow()
+
     fun loadAllowedMenus(roleId: Int) {
         viewModelScope.launch {
             _allowedMenus.value = intranetDao.getMenusByRole(roleId)
         }
     }
 
+    fun setActivityFilter(filter: String) {
+        if (filter != "WEEK") return
+
+        if (_activityFilter.value != "WEEK") {
+            _activityFilter.value = "WEEK"
+            loadDashboardData()
+        }
+    }
+
     fun loadIntranetData(search: String = "") {
         viewModelScope.launch {
+            _isLoading.value = true
             // TRAER CLIENTES DE RAILWAY
             val remoteClients = RailwayDatabase.getClients(search)
             _clientes.value = remoteClients.map { map ->
@@ -77,12 +117,54 @@ class IntranetViewModel(private val intranetDao: IntranetDao) : ViewModel() {
                     Estado = 1
                 )
             }
+            _isLoading.value = false
+        }
+    }
+
+    fun loadDashboardData() {
+        viewModelScope.launch {
+            _isLoading.value = true
+            _activityFilter.value = "WEEK"
+            val days = 7
+            
+            _dashboardStats.value = RailwayDatabase.getDashboardStats()
+            _proformaActivity.value = RailwayDatabase.getProformaActivity(days)
+            
+            // Generar etiquetas dinámicas basadas en los últimos 7 días
+            val labels = mutableListOf<String>()
+            val cal = java.util.Calendar.getInstance()
+            cal.add(java.util.Calendar.DAY_OF_YEAR, -6)
+            val dayFormat = SimpleDateFormat("EE", Locale("es", "PE"))
+            
+            for (i in 0 until 7) {
+                // Tomar la primera letra del día (L, M, M, J, V, S, D)
+                val dayName = dayFormat.format(cal.time).uppercase()
+                // Evitar conflictos con Miércoles/Martes si es posible, pero mantener estándar
+                labels.add(dayName.take(1))
+                cal.add(java.util.Calendar.DAY_OF_YEAR, 1)
+            }
+            _activityLabels.value = labels
+            
+            loadAllProformas()
+            _isLoading.value = false
         }
     }
 
     fun loadAllProformas(search: String = "") {
         viewModelScope.launch {
             _proformas.value = RailwayDatabase.getProformas(search)
+        }
+    }
+
+    // --- CARGAR REPORTES ---
+    fun loadReportData() {
+        viewModelScope.launch {
+            _isLoading.value = true
+            _reportKPIs.value = RailwayDatabase.getReportKPIs()
+            _proformasByState.value = RailwayDatabase.getProformasByState()
+            _topClients.value = RailwayDatabase.getTopClients(7)
+            _salesByMonth.value = RailwayDatabase.getSalesByMonth()
+            _isLoading.value = false
         }
     }
 
@@ -199,10 +281,11 @@ class IntranetViewModel(private val intranetDao: IntranetDao) : ViewModel() {
 
             _uiMessage.value = if (remoteId > 0) "Producto sincronizado en Railway." else "Producto guardado local (Offline)."
             loadIntranetData()
+            _isLoading.value = false
         }
     }
 
-    // CARSIL-POL-INT: Precisión Financiera y Control de Inventario Sincronizado
+    // CARSIL-POL-INT: La proforma no mueve inventario; el stock se descuenta al facturar.
     fun generarProforma(idUsuario: Int, idCliente: Int, idProducto: Int, cantidad: Int) {
         viewModelScope.launch {
             val producto = _productos.value.find { it.IdProducto == idProducto } ?: return@launch
@@ -238,48 +321,46 @@ class IntranetViewModel(private val intranetDao: IntranetDao) : ViewModel() {
                         "Descripcion" to producto.Nombre
                     )
                     RailwayDatabase.insertProformaDetail(detMap)
-                    
-                    // 3. ACTUALIZAR STOCK EN RAILWAY
-                    RailwayDatabase.updateProductStock(idProducto, cantidad)
                 }
 
-                // 4. RESPALDO LOCAL (OPCIONAL/HISTORICO)
-                val resultLocal = intranetDao.updateStockReduction(idProducto, cantidad)
-                if (resultLocal > 0) {
-                    val newProforma = ProformaEntity(
-                        Codigo = codigoProf,
-                        IdUsuario = idUsuario,
-                        IdCliente = idCliente,
-                        IdEmpresa = 1,
-                        FechaEmision = fechaEmision,
-                        Referencia = "Copia local sincronizada",
-                        ValidezOferta = 10,
-                        TiempoEntrega = "5 dias habiles",
-                        LugarEntrega = "Lima",
-                        Garantia = "12 meses",
-                        FormaPago = "Contado",
-                        PorcentajeIGV = 18.0,
-                        SubTotal = subtotal,
-                        TotalIGV = totalIgv,
-                        Total = total,
-                        Estado = "PENDIENTE"
-                    )
-                    val proformaId = intranetDao.insertProforma(newProforma)
+                // 3. RESPALDO LOCAL (OPCIONAL/HISTORICO)
+                val newProforma = ProformaEntity(
+                    Codigo = codigoProf,
+                    IdUsuario = idUsuario,
+                    IdCliente = idCliente,
+                    IdEmpresa = 1,
+                    FechaEmision = fechaEmision,
+                    Referencia = "Copia local sincronizada",
+                    ValidezOferta = 10,
+                    TiempoEntrega = "5 dias habiles",
+                    LugarEntrega = "Lima",
+                    Garantia = "12 meses",
+                    FormaPago = "Contado",
+                    PorcentajeIGV = 18.0,
+                    SubTotal = subtotal,
+                    TotalIGV = totalIgv,
+                    Total = total,
+                    Estado = "PENDIENTE"
+                )
+                val proformaId = intranetDao.insertProforma(newProforma)
 
-                    intranetDao.insertDetalleProforma(
-                        DetalleProformaEntity(
-                            IdProforma = proformaId.toInt(),
-                            IdProducto = idProducto,
-                            Cantidad = cantidad.toDouble(),
-                            PrecioUnitario = producto.PrecioUnitario,
-                            Total = subtotal,
-                            DescripcionAdicional = producto.Nombre
-                        )
+                intranetDao.insertDetalleProforma(
+                    DetalleProformaEntity(
+                        IdProforma = proformaId.toInt(),
+                        IdProducto = idProducto,
+                        Cantidad = cantidad.toDouble(),
+                        PrecioUnitario = producto.PrecioUnitario,
+                        Total = subtotal,
+                        DescripcionAdicional = producto.Nombre
                     )
-                    
-                    _lastProforma.value = newProforma.copy(IdProforma = if (remoteId > 0) remoteId else proformaId.toInt())
-                    _proformaGenerada.value = true
-                    _uiMessage.value = "Proforma generada y sincronizada."
+                )
+
+                _lastProforma.value = newProforma.copy(IdProforma = if (remoteId > 0) remoteId else proformaId.toInt())
+                _proformaGenerada.value = true
+                _uiMessage.value = if (remoteId > 0) {
+                    "Proforma generada y sincronizada."
+                } else {
+                    "Proforma generada en modo local."
                 }
                 loadIntranetData() 
             } else {
@@ -291,6 +372,9 @@ class IntranetViewModel(private val intranetDao: IntranetDao) : ViewModel() {
     // CARSIL-POL-ASIS: Control de asistencia nativo sincronizado
     private val _asistenciaState = MutableStateFlow<Map<String, Any?>?>(null)
     val asistenciaState: StateFlow<Map<String, Any?>?> = _asistenciaState.asStateFlow()
+
+    private val _allAttendances = MutableStateFlow<List<Map<String, Any>>>(emptyList())
+    val allAttendances: StateFlow<List<Map<String, Any>>> = _allAttendances.asStateFlow()
 
     fun cargarAsistenciaHoy(idUsuario: Int) {
         viewModelScope.launch {
@@ -310,6 +394,23 @@ class IntranetViewModel(private val intranetDao: IntranetDao) : ViewModel() {
                     ) else null
                 }
             }
+        }
+    }
+
+    fun loadAllAttendances(
+        fecha: String? = null,
+        search: String = "",
+        estadoFiltro: String = "TODOS"
+    ) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            val dateToFetch = fecha ?: SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+            _allAttendances.value = RailwayDatabase.getAttendances(
+                fecha = dateToFetch,
+                search = search,
+                estadoFiltro = estadoFiltro
+            )
+            _isLoading.value = false
         }
     }
 
@@ -358,10 +459,44 @@ class IntranetViewModel(private val intranetDao: IntranetDao) : ViewModel() {
         _proformaGenerada.value = false
     }
 
+    fun descargarPdfProforma(context: android.content.Context, idProforma: Int) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            try {
+                val fullProf = RailwayDatabase.getProformaById(idProforma)
+                val details = RailwayDatabase.getProformaDetails(idProforma)
+                
+                if (fullProf != null) {
+                    val uri = com.example.appcarsilauth.util.PdfGenerator.generatePremiumProformaPdf(
+                        context = context,
+                        proforma = fullProf,
+                        detalles = details
+                    )
+                    
+                    if (uri != null) {
+                        val intent = Intent(Intent.ACTION_VIEW).apply {
+                            setDataAndType(uri, "application/pdf")
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        }
+                        context.startActivity(Intent.createChooser(intent, "Abrir Proforma CARSIL"))
+                    }
+                } else {
+                    _uiMessage.value = "No se pudo recuperar la proforma de la nube."
+                }
+            } catch (e: Exception) {
+                _uiMessage.value = "Error al descargar PDF: ${e.message}"
+            } finally {
+                _isLoading.value = false
+            }
+        }
+    }
+
     fun clearSessionState() {
         _allowedMenus.value = emptyList()
         _proformaGenerada.value = false
         _lastProforma.value = null
         _asistenciaState.value = null
+        _allAttendances.value = emptyList()
     }
 }

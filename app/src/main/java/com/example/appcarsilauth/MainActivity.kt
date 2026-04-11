@@ -2,23 +2,46 @@ package com.example.appcarsilauth
 
 import android.os.Bundle
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.biometric.BiometricManager
+import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import com.example.appcarsilauth.data.local.AppDatabase
 import com.example.appcarsilauth.data.repository.SecurityRepositoryImpl
 import com.example.appcarsilauth.domain.use_case.ValidateLockoutUseCase
+import com.example.appcarsilauth.ui.components.CarsilColors
+import com.example.appcarsilauth.ui.components.CarsilShapes
 import com.example.appcarsilauth.ui.screens.*
 import com.example.appcarsilauth.ui.theme.AppCarsilAuthTheme
 import com.example.appcarsilauth.ui.viewmodel.AuthState
@@ -26,10 +49,19 @@ import com.example.appcarsilauth.ui.viewmodel.AuthViewModel
 import com.example.appcarsilauth.ui.viewmodel.IntranetViewModel
 import com.example.appcarsilauth.util.BiometricHelper
 import com.example.appcarsilauth.util.JwtTokenManager
+import com.example.appcarsilauth.util.LoginPreferences
 import com.example.appcarsilauth.util.SecureBiometricStorage
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 class MainActivity : FragmentActivity() {
+    private val lastActivityTimeState = mutableLongStateOf(System.currentTimeMillis())
+
+    override fun onUserInteraction() {
+        super.onUserInteraction()
+        lastActivityTimeState.longValue = System.currentTimeMillis()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -45,12 +77,18 @@ class MainActivity : FragmentActivity() {
         val securityRepository = SecurityRepositoryImpl(database.securityDao())
         val validateLockoutUseCase = ValidateLockoutUseCase(securityRepository)
         val biometricStorage = SecureBiometricStorage(this)
+        val loginPreferences = LoginPreferences(this)
         val biometricHelper = BiometricHelper(this)
 
         val authViewModel: AuthViewModel by viewModels {
             object : ViewModelProvider.Factory {
                 override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                    return AuthViewModel(validateLockoutUseCase, database.auditDao(), database.intranetDao()) as T
+                    return AuthViewModel(
+                        validateLockoutUseCase, 
+                        database.auditDao(), 
+                        database.intranetDao(),
+                        loginPreferences
+                    ) as T
                 }
             }
         }
@@ -88,20 +126,32 @@ class MainActivity : FragmentActivity() {
                 }
             }
 
-            var lastActivityTime by remember { mutableLongStateOf(System.currentTimeMillis()) }
-            var showTimeoutDialog by remember { mutableStateOf(false) }
+            val lastActivityTime by lastActivityTimeState
+            var isSessionExpired by remember { mutableStateOf(false) }
+            var showExitDialog by remember { mutableStateOf(false) }
+            val isLoading by intranetViewModel.isLoading.collectAsState()
 
+            // CARSIL-POL-SEC: Control de inactividad de 5 minutos
             LaunchedEffect(authState, lastActivityTime) {
                 if (authState is AuthState.Success) {
                     while (true) {
-                        delay(10000)
+                        delay(30000) // Verificar cada 30 segundos
                         val inactiveTime = System.currentTimeMillis() - lastActivityTime
-                        if (inactiveTime > 2 * 60 * 1000 && !showTimeoutDialog) {
-                            showTimeoutDialog = true
+                        if (inactiveTime > 5 * 60 * 1000 && !isSessionExpired) {
+                            isSessionExpired = true
+                            authViewModel.logout()
                         }
                     }
                 }
             }
+
+            val dashboardStats by intranetViewModel.dashboardStats.collectAsState()
+            val proformaActivity by intranetViewModel.proformaActivity.collectAsState()
+            val activityLabels by intranetViewModel.activityLabels.collectAsState()
+            val recentProformas by intranetViewModel.proformas.collectAsState()
+
+            val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+            val scope = rememberCoroutineScope()
 
             LaunchedEffect(authState) {
                 when (val state = authState) {
@@ -122,20 +172,20 @@ class MainActivity : FragmentActivity() {
                                 userId = json.getInt("sub")
                                 userEmail = json.getString("email")
                                 userRoleId = json.getInt("roleId")
-
-                                val usuario = database.intranetDao().getUserByEmail(userEmail)
-                                userName = if (usuario != null) "${usuario.Nombres} ${usuario.Apellidos}" else userEmail
+                                userName = state.userName
 
                                 intranetViewModel.loadAllowedMenus(userRoleId)
+                                intranetViewModel.loadDashboardData()
+                                
                                 currentScreen = if (userRoleId == 2) "ATTENDANCE" else "DASHBOARD"
-                                lastActivityTime = System.currentTimeMillis()
+                                lastActivityTimeState.longValue = System.currentTimeMillis()
                             } catch (e: Exception) {
                                 currentScreen = "LOGIN"
                             }
                         }
                     }
                     is AuthState.Idle, is AuthState.Error, is AuthState.LockedOut -> {
-                        if (currentScreen != "PROFORMA" && currentScreen != "CLIENTS" && currentScreen != "PRODUCTS" && currentScreen != "PROFILE" && currentScreen != "CHANGE_PASSWORD") {
+                        if (currentScreen != "PROFORMA" && currentScreen != "CLIENTS" && currentScreen != "PRODUCTS" && currentScreen != "PROFILE" && currentScreen != "CHANGE_PASSWORD" && currentScreen != "REPORTS") {
                             currentScreen = "LOGIN"
                         }
                     }
@@ -145,162 +195,383 @@ class MainActivity : FragmentActivity() {
 
             AppCarsilAuthTheme {
                 Surface(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .pointerInput(Unit) {
-                            detectTapGestures(onPress = {
-                                lastActivityTime = System.currentTimeMillis()
-                            })
-                        },
+                    modifier = Modifier.fillMaxSize(),
                     color = Color.White
                 ) {
-                    if (showTimeoutDialog) {
-                        AlertDialog(
-                            onDismissRequest = { },
-                            title = { Text("Sesion inactiva", color = Color.Black) },
-                            text = { Text("Tu sesion expirara pronto por seguridad.", color = Color.Black) },
-                            confirmButton = {
+                    // OVERLAY MINIMALISTA DE SESIÓN EXPIRADA
+                    if (isSessionExpired) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(Color.White.copy(alpha = 0.95f))
+                                .padding(32.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Icon(
+                                    Icons.Default.TimerOff,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(64.dp),
+                                    tint = CarsilColors.TextSecondary.copy(alpha = 0.5f)
+                                )
+                                Spacer(modifier = Modifier.height(24.dp))
+                                Text(
+                                    "Sesión Finalizada",
+                                    fontSize = 22.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = CarsilColors.TextPrimary
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    "Tu sesión se cerró automáticamente después de 5 minutos de inactividad por tu seguridad.",
+                                    fontSize = 14.sp,
+                                    color = CarsilColors.TextSecondary,
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                )
+                                Spacer(modifier = Modifier.height(40.dp))
                                 Button(
                                     onClick = {
-                                        authViewModel.refreshToken()
-                                        lastActivityTime = System.currentTimeMillis()
-                                        showTimeoutDialog = false
+                                        isSessionExpired = false
+                                        currentScreen = "LOGIN"
                                     },
-                                    colors = ButtonDefaults.buttonColors(containerColor = Color.Black)
-                                ) { Text("Mantener sesion") }
-                            },
-                            dismissButton = {
-                                TextButton(onClick = {
-                                    authViewModel.logout()
-                                    showTimeoutDialog = false
-                                }) { Text("Cerrar ahora", color = Color.Red) }
-                            },
-                            containerColor = Color.White
-                        )
+                                    shape = CarsilShapes.Medium,
+                                    colors = ButtonDefaults.buttonColors(containerColor = CarsilColors.Primary),
+                                    modifier = Modifier.width(200.dp)
+                                ) {
+                                    Text("ENTENDIDO", fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                                }
+                            }
+                        }
                     }
                     
                     // DIALOGO DE ADVERTENCIA SEGURIDAD (BLOQUEO)
                     if (showTransferDialog) {
                         AlertDialog(
                             onDismissRequest = { showTransferDialog = false },
-                            title = { Text("Seguridad de cuenta", color = Color.Black) },
-                            text = { Text("Otra cuenta ya tiene activa la huella dactilar en este dispositivo. Por seguridad, debe desactivar la huella desde la otra cuenta para poder activarla en esta cuenta.", color = Color.Black) },
+                            title = { 
+                                Text(
+                                    "Seguridad de Cuenta", 
+                                    fontWeight = FontWeight.Bold, 
+                                    color = CarsilColors.TextPrimary 
+                                ) 
+                            },
+                            text = { 
+                                Text(
+                                    "Otra cuenta ya tiene activa la huella dactilar en este dispositivo. Por seguridad, debe desactivarla desde la otra cuenta primero.", 
+                                    color = CarsilColors.TextSecondary,
+                                    fontSize = 14.sp
+                                ) 
+                            },
                             confirmButton = {
                                 Button(
                                     onClick = { showTransferDialog = false },
-                                    colors = ButtonDefaults.buttonColors(containerColor = Color.Black)
-                                ) { Text("Cerrar") }
+                                    shape = CarsilShapes.Small,
+                                    colors = ButtonDefaults.buttonColors(containerColor = CarsilColors.Primary)
+                                ) { Text("Entendido", fontWeight = FontWeight.Bold) }
                             },
-                            containerColor = Color.White
+                            containerColor = CarsilColors.Surface,
+                            tonalElevation = 0.dp
                         )
                     }
 
-                    when (currentScreen) {
-                        "DASHBOARD" -> DashboardScreen(
-                            email = userEmail,
-                            roleId = userRoleId,
-                            allowedMenus = allowedMenus,
-                            onGoToClients = { currentScreen = "CLIENTS" },
-                            onGoToProducts = { currentScreen = "PRODUCTS" },
-                            onGoToProforma = { currentScreen = "PROFORMA" },
-                            onGoToProfile = { currentScreen = "PROFILE" },
-                            onLogout = {
-                                authViewModel.logout()
-                                intranetViewModel.clearSessionState()
-                                currentScreen = "LOGIN"
-                            }
+                    // DIALOGO DE CONFIRMACION PARA SALIR DEL SISTEMA
+                    if (showExitDialog) {
+                        AlertDialog(
+                            onDismissRequest = { showExitDialog = false },
+                            title = { 
+                                Text(
+                                    "¿Salir del Sistema?", 
+                                    fontWeight = FontWeight.Bold, 
+                                    color = CarsilColors.TextPrimary 
+                                ) 
+                            },
+                            text = { 
+                                Text(
+                                    "¿Estás seguro que deseas cerrar la aplicación? Se perderán las proformas no guardadas.", 
+                                    color = CarsilColors.TextSecondary,
+                                    fontSize = 14.sp
+                                ) 
+                            },
+                            confirmButton = {
+                                Button(
+                                    onClick = { finish() },
+                                    shape = CarsilShapes.Small,
+                                    colors = ButtonDefaults.buttonColors(containerColor = CarsilColors.Danger)
+                                ) { Text("SÍ, SALIR", fontWeight = FontWeight.Bold) }
+                            },
+                            dismissButton = {
+                                TextButton(onClick = { showExitDialog = false }) { 
+                                    Text("CANCELAR", color = CarsilColors.TextSecondary, fontWeight = FontWeight.Medium) 
+                                }
+                            },
+                            containerColor = CarsilColors.Surface,
+                            tonalElevation = 0.dp
                         )
-                        "PROFILE" -> ProfileScreen(
-                            email = userEmail,
-                            userName = userName,
-                            roleId = userRoleId,
-                            isBiometricEnrolled = isBiometricEnrolled,
-                            isBiometricAvailable = canUseBiometric,
-                            userId = userId,
-                            onGoToChangePassword = { currentScreen = "CHANGE_PASSWORD" },
-                            onEnrollBiometric = {
-                                // LOGICA DE VALIDACION DE HUELLA EXISTENTE
-                                if (biometricStorage.isBiometricEnrolled() && !biometricStorage.isEnrolledFor(userEmail)) {
-                                    showTransferDialog = true
-                                } else {
-                                    biometricHelper.showBiometricPrompt(
-                                        title = "Registrar huella",
-                                        subtitle = "Confirma tu huella para enlazar tu cuenta",
-                                        onSuccess = {
-                                            biometricStorage.enrollUser(userEmail, userId, userRoleId, userName)
-                                            isBiometricEnrolled = true
-                                            Toast.makeText(this@MainActivity, "Huella registrada exitosamente", Toast.LENGTH_SHORT).show()
+                    }
+
+                    // MANEJO BOTON DE ATRAS Dinámico
+                    BackHandler {
+                        if (drawerState.isOpen) {
+                            scope.launch { drawerState.close() }
+                        } else if (currentScreen == "DASHBOARD" || currentScreen == "ATTENDANCE" || currentScreen == "LOGIN" || currentScreen == "REPORTS") {
+                            showExitDialog = true
+                        } else {
+                            // En otras pantallas secundarias, volver al Dashboard (o dejar que la pantalla maneje su onBack)
+                            currentScreen = "DASHBOARD"
+                        }
+                    }
+
+                    ModalNavigationDrawer(
+                        drawerState = drawerState,
+                        gesturesEnabled = currentScreen != "LOGIN",
+                        drawerContent = {
+                            ModalDrawerSheet(
+                                drawerContainerColor = Color.White,
+                                drawerShape = RoundedCornerShape(topEnd = 16.dp, bottomEnd = 16.dp),
+                                modifier = Modifier.width(210.dp)
+                            ) {
+                                Column(modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 24.dp)) {
+                                    // Sidebar minimalista sin información redundante de usuario
+                                    Spacer(modifier = Modifier.height(12.dp))
+                                    
+                                    Spacer(modifier = Modifier.height(32.dp))
+                                    Text("GESTIÓN PRINCIPAL", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.Black, letterSpacing = 1.sp)
+                                    Spacer(modifier = Modifier.height(16.dp))
+                                    
+                                    // Secciones con Restricciones de Rol (CARSIL-POL-SEC)
+                                    if (userRoleId != 2) {
+                                        // ADMINISTRADOR / OTROS
+                                        NavigationDrawerItem(
+                                            label = { Text("Panel Principal", fontWeight = FontWeight.Medium) },
+                                            selected = currentScreen == "DASHBOARD",
+                                            onClick = { 
+                                                currentScreen = "DASHBOARD"
+                                                scope.launch { drawerState.close() }
+                                            },
+                                            icon = { Icon(Icons.Default.Dashboard, null) },
+                                            colors = NavigationDrawerItemDefaults.colors(selectedContainerColor = CarsilColors.PrimaryLight, selectedTextColor = CarsilColors.Primary, selectedIconColor = CarsilColors.Primary)
+                                        )
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        NavigationDrawerItem(
+                                            label = { Text("Asistencia Diaria", fontWeight = FontWeight.Medium) },
+                                            selected = currentScreen == "ATTENDANCE",
+                                            onClick = { 
+                                                currentScreen = "ATTENDANCE"
+                                                scope.launch { drawerState.close() }
+                                            },
+                                            icon = { Icon(Icons.Default.Timer, null) }
+                                        )
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        NavigationDrawerItem(
+                                            label = { Text("Gestión Clientes", fontWeight = FontWeight.Medium) },
+                                            selected = currentScreen == "CLIENTS",
+                                            onClick = { 
+                                                currentScreen = "CLIENTS"
+                                                scope.launch { drawerState.close() }
+                                            },
+                                            icon = { Icon(Icons.Default.Groups, null) }
+                                        )
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        NavigationDrawerItem(
+                                            label = { Text("Inventario Stock", fontWeight = FontWeight.Medium) },
+                                            selected = currentScreen == "PRODUCTS",
+                                            onClick = { 
+                                                currentScreen = "PRODUCTS"
+                                                scope.launch { drawerState.close() }
+                                            },
+                                            icon = { Icon(Icons.Default.Inventory, null) }
+                                        )
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        NavigationDrawerItem(
+                                            label = { Text("Generar Proforma", fontWeight = FontWeight.Medium) },
+                                            selected = currentScreen == "PROFORMA",
+                                            onClick = { 
+                                                currentScreen = "PROFORMA"
+                                                scope.launch { drawerState.close() }
+                                            },
+                                            icon = { Icon(Icons.Default.ReceiptLong, null) }
+                                        )
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        NavigationDrawerItem(
+                                            label = { Text("Reportes Analíticos", fontWeight = FontWeight.Medium) },
+                                            selected = currentScreen == "REPORTS",
+                                            onClick = { 
+                                                currentScreen = "REPORTS"
+                                                scope.launch { drawerState.close() }
+                                            },
+                                            icon = { Icon(Icons.Default.Assessment, null) }
+                                        )
+                                    } else {
+                                        // EMPLEADO (Solo vista limitada)
+                                        NavigationDrawerItem(
+                                            label = { Text("Marcar Asistencia", fontWeight = FontWeight.Medium) },
+                                            selected = currentScreen == "ATTENDANCE",
+                                            onClick = { 
+                                                currentScreen = "ATTENDANCE"
+                                                scope.launch { drawerState.close() }
+                                            },
+                                            icon = { Icon(Icons.Default.Timer, null) },
+                                            colors = NavigationDrawerItemDefaults.colors(selectedContainerColor = CarsilColors.PrimaryLight, selectedTextColor = CarsilColors.Primary, selectedIconColor = CarsilColors.Primary)
+                                        )
+                                    }
+
+                                    Spacer(modifier = Modifier.weight(1f))
+                                    
+                                    NavigationDrawerItem(
+                                        label = { Text("Mi Perfil", fontWeight = FontWeight.Medium) },
+                                        selected = currentScreen == "PROFILE",
+                                        onClick = { 
+                                            currentScreen = "PROFILE"
+                                            scope.launch { drawerState.close() }
                                         },
-                                        onError = { _, err ->
-                                            Toast.makeText(this@MainActivity, "Error: $err", Toast.LENGTH_SHORT).show()
+                                        icon = { Icon(Icons.Default.Person, null) }
+                                    )
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    NavigationDrawerItem(
+                                        label = { Text("Cerrar Sesión", fontWeight = FontWeight.Medium) },
+                                        selected = false,
+                                        onClick = { 
+                                            authViewModel.logout()
+                                            intranetViewModel.clearSessionState()
+                                            currentScreen = "LOGIN"
+                                            scope.launch { drawerState.close() }
+                                        },
+                                        icon = { Icon(Icons.AutoMirrored.Filled.Logout, null, tint = CarsilColors.Danger) }
+                                    )
+                                }
+                            }
+                        }
+                    ) {
+                        Surface(
+                            modifier = Modifier.fillMaxSize(),
+                            color = Color.White
+                        ) {
+                            when (currentScreen) {
+                                "DASHBOARD" -> DashboardScreen(
+                                    email = userEmail,
+                                    userName = userName,
+                                    roleId = userRoleId,
+                                    allowedMenus = allowedMenus,
+                                    stats = dashboardStats,
+                                    activity = proformaActivity,
+                                    activityLabels = activityLabels,
+                                    recentProformas = recentProformas,
+                                    isLoading = isLoading,
+                                    onGoToClients = { currentScreen = "CLIENTS" },
+                                    onGoToProducts = { currentScreen = "PRODUCTS" },
+                                    onGoToProforma = { currentScreen = "PROFORMA" },
+                                    onGoToProfile = { currentScreen = "PROFILE" },
+                                    onMenuClick = {
+                                        scope.launch { drawerState.open() }
+                                    },
+                                    onLogout = {
+                                        authViewModel.logout()
+                                        intranetViewModel.clearSessionState()
+                                        currentScreen = "LOGIN"
+                                    },
+                                    onRefresh = { intranetViewModel.loadDashboardData() }
+                                )
+                                "PROFILE" -> ProfileScreen(
+                                    email = userEmail,
+                                    userName = userName,
+                                    roleId = userRoleId,
+                                    isBiometricEnrolled = isBiometricEnrolled,
+                                    isBiometricAvailable = canUseBiometric,
+                                    userId = userId,
+                                    onGoToChangePassword = { currentScreen = "CHANGE_PASSWORD" },
+                                    onEnrollBiometric = {
+                                        // LOGICA DE VALIDACION DE HUELLA EXISTENTE
+                                        if (biometricStorage.isBiometricEnrolled() && !biometricStorage.isEnrolledFor(userEmail)) {
+                                            showTransferDialog = true
+                                        } else {
+                                            biometricHelper.showBiometricPrompt(
+                                                title = "Registrar huella",
+                                                subtitle = "Confirma tu huella para enlazar tu cuenta",
+                                                onSuccess = {
+                                                    biometricStorage.enrollUser(userEmail, userId, userRoleId, userName)
+                                                    isBiometricEnrolled = true
+                                                    Toast.makeText(this@MainActivity, "Huella añadida", Toast.LENGTH_SHORT).show()
+                                                },
+                                                onError = { errorCode, _ ->
+                                                    // No mostrar nada si el usuario cancela (10: ERROR_USER_CANCELED, 13: ERROR_NEGATIVE_BUTTON)
+                                                    if (errorCode != 10 && errorCode != 13 && errorCode != 7) { // 7 es Lockout temporal
+                                                        Toast.makeText(this@MainActivity, "Ocurrió un inconveniente con la biometría", Toast.LENGTH_SHORT).show()
+                                                    }
+                                                }
+                                            )
+                                        }
+                                    },
+                                    onRemoveBiometric = {
+                                        biometricStorage.removeEnrollment()
+                                        isBiometricEnrolled = false
+                                        Toast.makeText(this@MainActivity, "Huella desactivada", Toast.LENGTH_SHORT).show()
+                                    },
+                                    onBack = { currentScreen = "DASHBOARD" }
+                                )
+                                "CHANGE_PASSWORD" -> ChangePasswordScreen(
+                                    userId = userId,
+                                    onChangePassword = { current, new, onRes ->
+                                        authViewModel.changePassword(userId, current, new, onRes)
+                                    },
+                                    onBack = { currentScreen = "PROFILE" },
+                                    onSuccess = {
+                                        authViewModel.logout()
+                                        intranetViewModel.clearSessionState()
+                                        currentScreen = "LOGIN"
+                                        Toast.makeText(this@MainActivity, "Contraseña actualizada. Inicie sesión nuevamente.", Toast.LENGTH_LONG).show()
+                                    }
+                                )
+                                "CLIENTS" -> ClientsScreen(viewModel = intranetViewModel, onBack = { currentScreen = "DASHBOARD" })
+                                "PRODUCTS" -> ProductsScreen(viewModel = intranetViewModel, onBack = { currentScreen = "DASHBOARD" })
+                                "PROFORMA" -> ProformaScreen(viewModel = intranetViewModel, idUsuario = userId, onBack = { currentScreen = "DASHBOARD" })
+                                "REPORTS" -> ReportsScreen(viewModel = intranetViewModel, onBack = { currentScreen = "DASHBOARD" })
+                                "ATTENDANCE" -> AttendanceScreen(
+                                    userName = userName,
+                                    roleId = userRoleId,
+                                    viewModel = intranetViewModel,
+                                    idUsuario = userId,
+                                    onLogout = {
+                                        authViewModel.logout()
+                                        intranetViewModel.clearSessionState()
+                                        currentScreen = "LOGIN"
+                                    }
+                                )
+                                else -> {
+                                    val isEnrolled = if (authViewModel.email.isNotBlank()) {
+                                        biometricStorage.isEnrolledFor(authViewModel.email)
+                                    } else {
+                                        false
+                                    }
+
+                                    LoginScreen(
+                                        viewModel = authViewModel,
+                                        isBiometricEnrolledForThisUser = isEnrolled,
+                                        onFingerprintClick = {
+                                            if (isEnrolled) {
+                                                biometricHelper.showBiometricPrompt(
+                                                    title = "Acceso biometrico",
+                                                    subtitle = "Usuario identificado: ${authViewModel.identifiedUserName}",
+                                                    onSuccess = {
+                                                        authViewModel.handleBiometricSuccess(authViewModel.email)
+                                                    },
+                                                    onError = { errorCode, _ ->
+                                                        // No mostrar nada si el usuario cancela
+                                                        if (errorCode != 10 && errorCode != 13 && errorCode != 7) {
+                                                            Toast.makeText(this@MainActivity, "No se pudo verificar la huella", Toast.LENGTH_SHORT).show()
+                                                        }
+                                                    }
+                                                )
+                                            } else {
+                                                Toast.makeText(
+                                                    this@MainActivity,
+                                                    "Biometria no activa para esta cuenta en este equipo.",
+                                                    Toast.LENGTH_LONG
+                                                ).show()
+                                            }
                                         }
                                     )
                                 }
-                            },
-                            onRemoveBiometric = {
-                                biometricStorage.removeEnrollment()
-                                isBiometricEnrolled = false
-                                Toast.makeText(this@MainActivity, "Huella desactivada", Toast.LENGTH_SHORT).show()
-                            },
-                            onBack = { currentScreen = "DASHBOARD" }
-                        )
-                        "CHANGE_PASSWORD" -> ChangePasswordScreen(
-                            userId = userId,
-                            onChangePassword = { current, new, onRes ->
-                                authViewModel.changePassword(userId, current, new, onRes)
-                            },
-                            onBack = { currentScreen = "PROFILE" },
-                            onSuccess = {
-                                authViewModel.logout()
-                                intranetViewModel.clearSessionState()
-                                currentScreen = "LOGIN"
-                                Toast.makeText(this@MainActivity, "Contraseña actualizada. Inicie sesión nuevamente.", Toast.LENGTH_LONG).show()
                             }
-                        )
-                        "CLIENTS" -> ClientsScreen(viewModel = intranetViewModel, onBack = { currentScreen = "DASHBOARD" })
-                        "PRODUCTS" -> ProductsScreen(viewModel = intranetViewModel, onBack = { currentScreen = "DASHBOARD" })
-                        "PROFORMA" -> ProformaScreen(viewModel = intranetViewModel, idUsuario = userId, onBack = { currentScreen = "DASHBOARD" })
-                        "ATTENDANCE" -> AttendanceScreen(
-                            email = userEmail,
-                            viewModel = intranetViewModel,
-                            idUsuario = userId,
-                            onLogout = {
-                                authViewModel.logout()
-                                intranetViewModel.clearSessionState()
-                                currentScreen = "LOGIN"
-                            }
-                        )
-                        else -> {
-                            val isEnrolled = if (authViewModel.email.isNotBlank()) {
-                                biometricStorage.isEnrolledFor(authViewModel.email)
-                            } else {
-                                false
-                            }
-
-                            LoginScreen(
-                                viewModel = authViewModel,
-                                isBiometricEnrolledForThisUser = isEnrolled,
-                                onFingerprintClick = {
-                                    if (isEnrolled) {
-                                        biometricHelper.showBiometricPrompt(
-                                            title = "Acceso biometrico",
-                                            subtitle = "Usuario identificado: ${authViewModel.identifiedUserName}",
-                                            onSuccess = {
-                                                authViewModel.handleBiometricSuccess(authViewModel.email)
-                                            },
-                                            onError = { _, err ->
-                                                Toast.makeText(this@MainActivity, "Error: $err", Toast.LENGTH_SHORT).show()
-                                            }
-                                        )
-                                    } else {
-                                        Toast.makeText(
-                                            this@MainActivity,
-                                            "Biometria no activa para esta cuenta en este equipo.",
-                                            Toast.LENGTH_LONG
-                                        ).show()
-                                    }
-                                }
-                            )
                         }
                     }
                 }

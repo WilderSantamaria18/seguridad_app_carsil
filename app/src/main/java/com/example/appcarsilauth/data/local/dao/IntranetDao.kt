@@ -80,6 +80,7 @@ interface IntranetDao {
     @Query("SELECT COALESCE(MAX(IdProducto), 0) FROM PRODUCTO")
     suspend fun getMaxProductoId(): Int
 
+    // Usar solo cuando se registra una factura/venta confirmada.
     @Query("UPDATE PRODUCTO SET Stock = Stock - :cantidad WHERE IdProducto = :idProducto AND Stock >= :cantidad")
     suspend fun updateStockReduction(idProducto: Int, cantidad: Int): Int
 
