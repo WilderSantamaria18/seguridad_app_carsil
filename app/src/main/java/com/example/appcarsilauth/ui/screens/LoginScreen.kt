@@ -280,14 +280,33 @@ fun LoginScreen(
                 }
 
                 if (authState is AuthState.Error) {
-                    Spacer(modifier = Modifier.height(20.dp))
-                    Text(
-                        text = (authState as AuthState.Error).message,
-                        color = Color.Black,
-                        fontSize = 13.sp,
-                        textAlign = TextAlign.Center,
-                        fontWeight = FontWeight.Bold
-                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        color = Color(0xFFFFEBEB),
+                        border = BorderStroke(1.dp, Color(0xFFFCA5A5))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(12.dp),
+                            verticalAlignment = Alignment.Top
+                        ) {
+                            Icon(
+                                Icons.Default.Warning,
+                                contentDescription = null,
+                                tint = Color(0xFFDC2626),
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text(
+                                text = (authState as AuthState.Error).message,
+                                color = Color(0xFFB91C1C),
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Medium,
+                                lineHeight = 18.sp
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -350,30 +369,232 @@ fun LoginScreen(
         )
     }
 
-    if (authState is AuthState.LockedOut) {
+    // ── Pantalla de Usuario Inactivo ──────────────────────────────────
+    if (authState is AuthState.InactiveUser) {
         Box(
-            modifier = Modifier.fillMaxSize().background(Color.White).padding(32.dp),
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.White)
+                .padding(32.dp),
             contentAlignment = Alignment.Center
         ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Icon(Icons.Default.Timer, null, tint = Color.Black, modifier = Modifier.size(80.dp))
-                Spacer(Modifier.height(24.dp))
-                Text("Seguridad Activada", color = Color.Black, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                // Ícono de cuenta bloqueada
+                Box(
+                    modifier = Modifier
+                        .size(110.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFFF3F4F6)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Default.PersonOff,
+                        contentDescription = null,
+                        tint = Color(0xFF6B7280),
+                        modifier = Modifier.size(58.dp)
+                    )
+                }
+
                 Text(
-                    "Demasiados intentos. Espera para reintentar:",
-                    color = Color.Black,
+                    "Acceso Denegado",
+                    color = Color(0xFF1F2937),
+                    fontSize = 26.sp,
+                    fontWeight = FontWeight.Black,
                     textAlign = TextAlign.Center
                 )
-                val state = authState as AuthState.LockedOut
+
                 Text(
-                    text = String.format("%02d:%02d", (state.remainingTimeMs/1000)/60, (state.remainingTimeMs/1000)%60),
-                    color = Color.Black,
-                    fontSize = 50.sp,
-                    fontWeight = FontWeight.Black
+                    "Tu cuenta ha sido desactivada y no tienes\nacceso al sistema CARSIL.",
+                    color = Color(0xFF6B7280),
+                    fontSize = 14.sp,
+                    textAlign = TextAlign.Center,
+                    lineHeight = 21.sp
                 )
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                // Cuadro de aviso de contacto
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    color = Color(0xFFF0F9FF),
+                    border = BorderStroke(1.dp, Color(0xFFBAE6FD))
+                ) {
+                    Column(
+                        modifier = Modifier.padding(20.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.AdminPanelSettings,
+                            contentDescription = null,
+                            tint = Color(0xFF0284C7),
+                            modifier = Modifier.size(36.dp)
+                        )
+                        Text(
+                            "Comunícate con el Administrador",
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 15.sp,
+                            color = Color(0xFF0369A1),
+                            textAlign = TextAlign.Center
+                        )
+                        Text(
+                            "Para reactivar tu cuenta o consultar el motivo de la desactivación, " +
+                            "contacta al Administrador del Sistema CARSIL.",
+                            fontSize = 13.sp,
+                            color = Color(0xFF0284C7),
+                            textAlign = TextAlign.Center,
+                            lineHeight = 19.sp
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                // Botón para volver
+                Button(
+                    onClick = { viewModel.logout() },
+                    modifier = Modifier.fillMaxWidth().height(52.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    elevation = ButtonDefaults.buttonElevation(0.dp, 0.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF1F2937),
+                        contentColor = Color.White
+                    )
+                ) {
+                    Icon(
+                        Icons.AutoMirrored.Filled.ArrowBack,
+                        null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        "Volver al inicio de sesión",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp
+                    )
+                }
             }
         }
     }
+
+    // ── Pantalla de Bloqueo por intentos ─────────────────────────────
+    if (authState is AuthState.LockedOut) {
+        val lockedState = authState as AuthState.LockedOut
+        val totalSecs = (lockedState.remainingTimeMs / 1000).toInt()
+        val mins = totalSecs / 60
+        val secs = totalSecs % 60
+
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.White)
+                .padding(32.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                // Ícono de candado
+                Box(
+                    modifier = androidx.compose.ui.Modifier
+                        .size(100.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFFFFEBEB)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Default.Lock,
+                        contentDescription = null,
+                        tint = Color(0xFFDC2626),
+                        modifier = androidx.compose.ui.Modifier.size(52.dp)
+                    )
+                }
+
+                Text(
+                    "Cuenta Bloqueada",
+                    color = Color(0xFF1F2937),
+                    fontSize = 26.sp,
+                    fontWeight = FontWeight.Black,
+                    textAlign = TextAlign.Center
+                )
+
+                Text(
+                    "Has superado los 5 intentos fallidos.\nPor seguridad, tu acceso está temporalmente bloqueado.",
+                    color = Color(0xFF6B7280),
+                    fontSize = 14.sp,
+                    textAlign = TextAlign.Center,
+                    lineHeight = 20.sp
+                )
+
+                Spacer(modifier = androidx.compose.ui.Modifier.height(8.dp))
+
+                // Contador regresivo grande
+                Surface(
+                    shape = RoundedCornerShape(20.dp),
+                    color = Color(0xFFF3F4F6),
+                    border = BorderStroke(1.dp, Color(0xFFE5E7EB))
+                ) {
+                    Column(
+                        modifier = androidx.compose.ui.Modifier.padding(horizontal = 40.dp, vertical = 20.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "Tiempo restante",
+                            fontSize = 12.sp,
+                            color = Color(0xFF9CA3AF),
+                            fontWeight = FontWeight.Medium
+                        )
+                        Spacer(modifier = androidx.compose.ui.Modifier.height(4.dp))
+                        Text(
+                            text = String.format("%02d:%02d", mins, secs),
+                            color = Color(0xFFDC2626),
+                            fontSize = 56.sp,
+                            fontWeight = FontWeight.Black,
+                            letterSpacing = 2.sp
+                        )
+                        Text(
+                            text = "minutos : segundos",
+                            fontSize = 11.sp,
+                            color = Color(0xFF9CA3AF)
+                        )
+                    }
+                }
+
+                Spacer(modifier = androidx.compose.ui.Modifier.height(8.dp))
+
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = Color(0xFFFFF7E6),
+                    border = BorderStroke(1.dp, Color(0xFFFFD591))
+                ) {
+                    Row(
+                        modifier = androidx.compose.ui.Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Default.Timer,
+                            null,
+                            tint = Color(0xFFB45309),
+                            modifier = androidx.compose.ui.Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = androidx.compose.ui.Modifier.width(8.dp))
+                        Text(
+                            "El bloqueo se levantará automáticamente al llegar a 00:00.",
+                            fontSize = 12.sp,
+                            color = Color(0xFFB45309),
+                            lineHeight = 17.sp
+                        )
+                    }
+                }
+            }
+        }
+    }
+
 
     AnimatedVisibility(
         visible = authState is AuthState.SuccessAnimation,

@@ -23,6 +23,7 @@ import org.mindrot.jbcrypt.BCrypt
 sealed class AuthState {
     object Idle : AuthState()
     object Loading : AuthState()
+    object InactiveUser : AuthState()                         // Cuenta desactivada por el admin
     data class LockedOut(val remainingTimeMs: Long) : AuthState()
     data class Error(val message: String) : AuthState()
     object SuccessAnimation : AuthState()
@@ -129,7 +130,7 @@ class AuthViewModel(
         viewModelScope.launch {
             _authState.value = AuthState.Loading
             try {
-                // PRIMERO BUSCAR EN RAILWAY (NUBE)
+                // Buscar usuario ACTIVO en Railway (Estado = 1)
                 val remoteUser = RailwayDatabase.getUserByEmail(normalizedEmail)
 
                 if (remoteUser != null) {
@@ -140,16 +141,31 @@ class AuthViewModel(
                     _authState.value = AuthState.Idle
                     loginStep = 2
                 } else {
-                    // SI NO ESTÁ EN NUBE, BUSCAR EN LOCAL (OPCIONAL)
-                    val usuario = intranetDao.getUserByEmail(normalizedEmail)
-                    if (usuario != null) {
-                        identifiedUserName = "${usuario.Nombres} ${usuario.Apellidos}"
-                        identifiedUserId = usuario.IdUsuario
-                        identifiedRoleId = usuario.IdRol
-                        _authState.value = AuthState.Idle
-                        loginStep = 2
-                    } else {
-                        _authState.value = AuthState.Error("Usuario no registrado en CARSIL.")
+                    // Usuario no activo → verificar si existe con cualquier estado
+                    val anyUser = RailwayDatabase.getUserByEmailAnyStatus(normalizedEmail)
+
+                    when {
+                        anyUser != null && (anyUser["Estado"] as? Int ?: 1) == 0 -> {
+                            // CUENTA INACTIVA: existe pero está desactivada por el administrador
+                            registerAuditLog(normalizedEmail, "LOGIN_DENIED_INACTIVE", "AUTH_MODULE")
+                            _authState.value = AuthState.InactiveUser
+                        }
+                        anyUser == null -> {
+                            // No existe en nube → intentar base local
+                            val usuario = intranetDao.getUserByEmail(normalizedEmail)
+                            if (usuario != null) {
+                                identifiedUserName = "${usuario.Nombres} ${usuario.Apellidos}"
+                                identifiedUserId = usuario.IdUsuario
+                                identifiedRoleId = usuario.IdRol
+                                _authState.value = AuthState.Idle
+                                loginStep = 2
+                            } else {
+                                _authState.value = AuthState.Error("Usuario no registrado en CARSIL.")
+                            }
+                        }
+                        else -> {
+                            _authState.value = AuthState.Error("Usuario no registrado en CARSIL.")
+                        }
                     }
                 }
             } catch (e: Throwable) {
@@ -167,7 +183,6 @@ class AuthViewModel(
         }
     }
 
-    // Paso 1: Validar credenciales
     fun preVerifyLogin() {
         val normalizedEmail = email.trim().lowercase(Locale.ROOT)
         val trimmedPin = pin.trim()
@@ -180,34 +195,39 @@ class AuthViewModel(
         viewModelScope.launch {
             _authState.value = AuthState.Loading
 
-            /* BLOQUEO TEMPORALMENTE DESACTIVADO
+            // Verificar bloqueo ANTES de intentar la contraseña
             if (validateLockoutUseCase.isLockedOut(normalizedEmail)) {
                 startLockoutTimer(normalizedEmail)
                 return@launch
             }
-            */
 
             try {
-                // AJUSTE DE COMPATIBILIDAD: Convertimos $2b$ a $2a$ para que Android lo reconozca
-                val storedHash = (identifiedUserHash ?: intranetDao.getUserByEmail(normalizedEmail)?.Clave)?.replaceFirst("$2b$", "$2a$")
+                val storedHash = (identifiedUserHash ?: intranetDao.getUserByEmail(normalizedEmail)?.Clave)?.replaceFirst("${'$'}2b${'$'}", "${'$'}2a${'$'}")
 
                 if (storedHash != null && BCrypt.checkpw(trimmedPin, storedHash)) {
+                    // Contraseña correcta → resetear intentos y abrir captcha
+                    validateLockoutUseCase.onSuccessfulLogin(normalizedEmail)
                     _authState.value = AuthState.Idle
                     isCaptchaModalVisible = true
                     captchaAttemptsInModal = 0
                 } else {
-                    /* BLOQUEO TEMPORALMENTE DESACTIVADO
-                    val isLocked = validateLockoutUseCase.recordFailedLogin(normalizedEmail)
-                    if (isLocked) {
-                        startLockoutTimer(normalizedEmail)
-                    } else {
-                        _authState.value = AuthState.Error("Contraseña incorrecta.")
-                        pin = "" 
-                    }
-                    */
-                    _authState.value = AuthState.Error("Contraseña incorrecta.")
+                    // Contraseña incorrecta → registrar fallo y calcular intentos restantes
+                    val isNowLocked = validateLockoutUseCase.recordFailedLogin(normalizedEmail)
                     pin = ""
                     registerAuditLog(normalizedEmail, "LOGIN_FAILED", "AUTH_MODULE")
+
+                    if (isNowLocked) {
+                        // Se alcanzó el límite: bloquear 5 minutos
+                        startLockoutTimer(normalizedEmail)
+                    } else {
+                        // Calcular intentos usados para mostrar mensaje informativo
+                        val remaining = validateLockoutUseCase.getRemainingAttempts(normalizedEmail)
+                        val used = ValidateLockoutUseCase.MAX_ATTEMPTS - remaining
+                        _authState.value = AuthState.Error(
+                            "Contraseña incorrecta. Intento $used de ${ValidateLockoutUseCase.MAX_ATTEMPTS}. " +
+                            "Te quedan $remaining intento${if (remaining == 1) "" else "s"} antes del bloqueo."
+                        )
+                    }
                 }
             } catch (e: Throwable) {
                 _authState.value = AuthState.Error("Error de validación: ${e.message}")

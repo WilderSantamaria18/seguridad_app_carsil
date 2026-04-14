@@ -6,8 +6,8 @@ class ValidateLockoutUseCase(
     private val securityRepository: SecurityRepository
 ) {
     companion object {
-        const val MAX_ATTEMPTS = 3
-        const val LOCKOUT_DURATION_MS = 10 * 60 * 1000L // 10 minutes
+        const val MAX_ATTEMPTS = 5
+        const val LOCKOUT_DURATION_MS = 5 * 60 * 1000L // 5 minutos
     }
 
     suspend fun isLockedOut(userId: String): Boolean {
@@ -44,5 +44,12 @@ class ValidateLockoutUseCase(
         val status = securityRepository.getSecurityStatus(userId) ?: return 0L
         val remaining = status.lockoutUntil - System.currentTimeMillis()
         return if (remaining > 0) remaining else 0L
+    }
+
+    /** Cuántos intentos le quedan antes de ser bloqueado. */
+    suspend fun getRemainingAttempts(userId: String): Int {
+        val status = securityRepository.getSecurityStatus(userId) ?: return MAX_ATTEMPTS
+        val used = status.failedAttempts.coerceAtLeast(0)
+        return (MAX_ATTEMPTS - used).coerceAtLeast(0)
     }
 }

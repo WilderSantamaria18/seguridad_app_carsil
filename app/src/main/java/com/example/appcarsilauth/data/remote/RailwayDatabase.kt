@@ -48,13 +48,43 @@ object RailwayDatabase {
                 userMap["Nombres"] = rs.getString("Nombres")
                 userMap["Apellidos"] = rs.getString("Apellidos")
                 userMap["Correo"] = rs.getString("Correo")
-                userMap["Clave"] = rs.getString("Clave") 
+                userMap["Clave"] = rs.getString("Clave")
                 userMap["Rol"] = rs.getString("RolNombre")
+                userMap["Estado"] = rs.getInt("Estado")
                 return@withContext userMap
             }
         } catch (e: Throwable) { throw e } finally { try { conn?.close() } catch (e: Exception) {} }
         return@withContext null
     }
+
+    /**
+     * Busca al usuario por correo SIN filtrar por Estado.
+     * Retorna el mapa con campo "Estado" (1=activo, 0=inactivo).
+     * Se usa para distinguir entre usuario inexistente vs usuario inactivo.
+     */
+    suspend fun getUserByEmailAnyStatus(email: String): Map<String, Any>? = withContext(Dispatchers.IO) {
+        var conn: Connection? = null
+        try {
+            conn = getConnection()
+            val query = "SELECT u.IdUsuario, u.Nombres, u.Apellidos, u.Correo, u.Estado, u.IdRol " +
+                        "FROM USUARIO u WHERE u.Correo = ? LIMIT 1"
+            val pstmt = conn.prepareStatement(query)
+            pstmt.setString(1, email)
+            val rs: ResultSet = pstmt.executeQuery()
+            if (rs.next()) {
+                return@withContext mapOf(
+                    "IdUsuario" to rs.getInt("IdUsuario"),
+                    "Nombres"   to rs.getString("Nombres"),
+                    "Apellidos" to rs.getString("Apellidos"),
+                    "Correo"    to rs.getString("Correo"),
+                    "Estado"    to rs.getInt("Estado"),
+                    "IdRol"     to rs.getInt("IdRol")
+                )
+            }
+        } catch (e: Throwable) { throw e } finally { try { conn?.close() } catch (e: Exception) {} }
+        return@withContext null
+    }
+
 
     // --- CLIENTES (AMPLIADO) ---
     suspend fun getClients(search: String = ""): List<Map<String, Any>> = withContext(Dispatchers.IO) {
@@ -462,26 +492,32 @@ object RailwayDatabase {
         val data = MutableList(days) { 0 }
         try {
             conn = getConnection()
+            // Usamos CONVERT_TZ para compensar UTC del servidor Render → UTC-5 (Perú)
+            // DATE(CONVERT_TZ(FechaEmision, '+00:00', '-05:00')) convierte correctamente el día peruano
             val query = """
-                SELECT DATE(FechaEmision) as fecha, COUNT(*) as cantidad 
-                FROM PROFORMA 
-                WHERE FechaEmision >= DATE_SUB(CURDATE(), INTERVAL ? DAY)
-                GROUP BY DATE(FechaEmision)
+                SELECT DATE(CONVERT_TZ(FechaEmision, '+00:00', '-05:00')) as fecha,
+                       COUNT(*) as cantidad
+                FROM PROFORMA
+                WHERE DATE(CONVERT_TZ(FechaEmision, '+00:00', '-05:00'))
+                      >= DATE(CONVERT_TZ(NOW(), '+00:00', '-05:00')) - INTERVAL ? DAY
+                GROUP BY fecha
                 ORDER BY fecha ASC
             """.trimIndent()
             val pstmt = conn.prepareStatement(query)
-            pstmt.setInt(1, days - 1)
+            pstmt.setInt(1, days - 1)   // hoy-6 .. hoy = 7 días
             val rs = pstmt.executeQuery()
-            // Llenamos la lista basándonos en la fecha para evitar desfases
-            val sdf = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
-            val calendar = java.util.Calendar.getInstance()
-            calendar.add(java.util.Calendar.DAY_OF_YEAR, -(days - 1))
-            
+
+            // Construimos el mapa de fecha → cantidad
             val countsMap = mutableMapOf<String, Int>()
             while (rs.next()) {
                 countsMap[rs.getString("fecha")] = rs.getInt("cantidad")
             }
-            
+
+            // Llenamos el arreglo posición a posición (posición 0 = hoy-6, ..., posición 6 = hoy)
+            // El dispositivo ya está en hora local (UTC-5), así que usamos su calendario
+            val sdf = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
+            val calendar = java.util.Calendar.getInstance()
+            calendar.add(java.util.Calendar.DAY_OF_YEAR, -(days - 1))
             for (i in 0 until days) {
                 val dateStr = sdf.format(calendar.time)
                 data[i] = countsMap[dateStr] ?: 0

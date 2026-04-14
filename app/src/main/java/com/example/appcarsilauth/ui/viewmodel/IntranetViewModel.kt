@@ -131,23 +131,24 @@ class IntranetViewModel(private val intranetDao: IntranetDao) : ViewModel() {
             val days = 7
             
             _dashboardStats.value = RailwayDatabase.getDashboardStats()
-            _proformaActivity.value = RailwayDatabase.getProformaActivity(days)
-            
+
             // Generar etiquetas dinámicas basadas en los últimos 7 días
+            // Igual que la web: i = 6..0 (desde hoy-6 hacia hoy)
             val labels = mutableListOf<String>()
-            val cal = java.util.Calendar.getInstance()
-            cal.add(java.util.Calendar.DAY_OF_YEAR, -6)
-            val dayFormat = SimpleDateFormat("EE", Locale("es", "PE"))
-            
-            for (i in 0 until 7) {
-                // Tomar la primera letra del día (L, M, M, J, V, S, D)
-                val dayName = dayFormat.format(cal.time).uppercase()
-                // Evitar conflictos con Miércoles/Martes si es posible, pero mantener estándar
-                labels.add(dayName.take(1))
-                cal.add(java.util.Calendar.DAY_OF_YEAR, 1)
+            val dayNamesEs = arrayOf("Dom", "Lun", "Mar", "Mie", "Jue", "Vie", "Sab")
+            val calLabel = java.util.Calendar.getInstance()
+            calLabel.add(java.util.Calendar.DAY_OF_YEAR, -(days - 1)) // hoy - 6
+            for (i in 0 until days) {
+                // Calendar.DAY_OF_WEEK: 1=Dom, 2=Lun... 7=Sab
+                val dow = calLabel.get(java.util.Calendar.DAY_OF_WEEK) - 1 // 0=Dom..6=Sab
+                labels.add(dayNamesEs[dow])
+                calLabel.add(java.util.Calendar.DAY_OF_YEAR, 1)
             }
             _activityLabels.value = labels
-            
+
+            // Cargar actividad DESPUÉS de que las etiquetas ya estén listas
+            _proformaActivity.value = RailwayDatabase.getProformaActivity(days)
+
             loadAllProformas()
             _isLoading.value = false
         }
