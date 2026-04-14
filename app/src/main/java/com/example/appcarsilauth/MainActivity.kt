@@ -196,7 +196,7 @@ class MainActivity : FragmentActivity() {
                         }
                     }
                     is AuthState.Idle, is AuthState.Error, is AuthState.LockedOut -> {
-                        if (currentScreen != "PROFORMA" && currentScreen != "CLIENTS" && currentScreen != "PRODUCTS" && currentScreen != "PROFILE" && currentScreen != "CHANGE_PASSWORD" && currentScreen != "REPORTS") {
+                        if (currentScreen != "PROFORMA" && currentScreen != "CLIENTS" && currentScreen != "PRODUCTS" && currentScreen != "PROFILE" && currentScreen != "CHANGE_PASSWORD" && currentScreen != "REPORTS" && currentScreen != "FACTURAS") {
                             currentScreen = "LOGIN"
                         }
                     }
@@ -445,6 +445,17 @@ class MainActivity : FragmentActivity() {
                                         )
                                         Spacer(modifier = Modifier.height(8.dp))
                                         NavigationDrawerItem(
+                                            label = { Text("Facturas", fontWeight = FontWeight.Medium) },
+                                            selected = currentScreen == "FACTURAS",
+                                            onClick = { 
+                                                currentScreen = "FACTURAS"
+                                                scope.launch { drawerState.close() }
+                                            },
+                                            icon = { Icon(Icons.Default.Receipt, null) },
+                                            colors = NavigationDrawerItemDefaults.colors(selectedContainerColor = Color(0xFFEDE9FE), selectedTextColor = Color(0xFF6366F1), selectedIconColor = Color(0xFF6366F1))
+                                        )
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        NavigationDrawerItem(
                                             label = { Text("Reportes Analíticos", fontWeight = FontWeight.Medium) },
                                             selected = currentScreen == "REPORTS",
                                             onClick = { 
@@ -576,6 +587,7 @@ class MainActivity : FragmentActivity() {
                                 "CLIENTS" -> ClientsScreen(viewModel = intranetViewModel, onBack = { currentScreen = "DASHBOARD" })
                                 "PRODUCTS" -> ProductsScreen(viewModel = intranetViewModel, onBack = { currentScreen = "DASHBOARD" })
                                 "PROFORMA" -> ProformaScreen(viewModel = intranetViewModel, idUsuario = userId, onBack = { currentScreen = "DASHBOARD" })
+                                "FACTURAS" -> FacturasScreen(viewModel = intranetViewModel, idUsuario = userId, onBack = { currentScreen = "DASHBOARD" })
                                 "REPORTS" -> ReportsScreen(viewModel = intranetViewModel, onBack = { currentScreen = "DASHBOARD" })
                                 "ATTENDANCE" -> AttendanceScreen(
                                     userName = userName,

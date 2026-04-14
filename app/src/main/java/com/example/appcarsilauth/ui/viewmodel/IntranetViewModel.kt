@@ -33,6 +33,9 @@ class IntranetViewModel(private val intranetDao: IntranetDao) : ViewModel() {
     private val _proformas = MutableStateFlow<List<Map<String, Any>>>(emptyList())
     val proformas: StateFlow<List<Map<String, Any>>> = _proformas.asStateFlow()
 
+    private val _facturas = MutableStateFlow<List<Map<String, Any>>>(emptyList())
+    val facturas: StateFlow<List<Map<String, Any>>> = _facturas.asStateFlow()
+
     private val _proformaGenerada = MutableStateFlow<Boolean>(false)
     val proformaGenerada: StateFlow<Boolean> = _proformaGenerada.asStateFlow()
 
@@ -153,6 +156,46 @@ class IntranetViewModel(private val intranetDao: IntranetDao) : ViewModel() {
     fun loadAllProformas(search: String = "") {
         viewModelScope.launch {
             _proformas.value = RailwayDatabase.getProformas(search)
+        }
+    }
+
+    fun loadAllFacturas(search: String = "", estadoFiltro: String = "TODOS") {
+        viewModelScope.launch {
+            _isLoading.value = true
+            _facturas.value = RailwayDatabase.getFacturas(search, estadoFiltro)
+            _isLoading.value = false
+        }
+    }
+
+    fun descargarPdfFactura(context: android.content.Context, idFactura: Int) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            try {
+                val fullFact = RailwayDatabase.getFacturaById(idFactura)
+                val details  = RailwayDatabase.getFacturaDetails(idFactura)
+
+                if (fullFact != null) {
+                    val uri = com.example.appcarsilauth.util.PdfGenerator.generatePremiumFacturaPdf(
+                        context = context,
+                        factura = fullFact,
+                        detalles = details
+                    )
+                    if (uri != null) {
+                        val intent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
+                            setDataAndType(uri, "application/pdf")
+                            addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                        }
+                        context.startActivity(android.content.Intent.createChooser(intent, "Abrir Factura CARSIL"))
+                    }
+                } else {
+                    _uiMessage.value = "No se pudo recuperar la factura de la nube."
+                }
+            } catch (e: Exception) {
+                _uiMessage.value = "Error al descargar PDF: ${e.message}"
+            } finally {
+                _isLoading.value = false
+            }
         }
     }
 

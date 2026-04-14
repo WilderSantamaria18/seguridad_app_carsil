@@ -699,4 +699,124 @@ object RailwayDatabase {
         finally { conn?.close() }
         return@withContext list
     }
+
+    // --- FACTURAS ---
+    suspend fun getFacturas(search: String = "", estadoFiltro: String = "TODOS"): List<Map<String, Any>> = withContext(Dispatchers.IO) {
+        var conn: Connection? = null
+        val list = mutableListOf<Map<String, Any>>()
+        try {
+            conn = getConnection()
+            val whereEstado = if (estadoFiltro != "TODOS") "AND f.Estado = '$estadoFiltro'" else ""
+            val query = """
+                SELECT f.IdFactura, f.Codigo, f.FechaEmision, f.FechaVencimiento,
+                       f.SubTotal, f.TotalIGV, f.Total, f.Estado, f.FormaPago,
+                       c.RazonSocial as ClienteNombre
+                FROM FACTURA f
+                INNER JOIN CLIENTE c ON f.IdCliente = c.IdCliente
+                WHERE (f.Codigo LIKE ? OR c.RazonSocial LIKE ?)
+                $whereEstado
+                ORDER BY f.FechaRegistro DESC
+            """.trimIndent()
+            val pstmt = conn.prepareStatement(query)
+            pstmt.setString(1, "%$search%")
+            pstmt.setString(2, "%$search%")
+            val rs = pstmt.executeQuery()
+            while (rs.next()) {
+                list.add(mapOf(
+                    "IdFactura"        to rs.getInt("IdFactura"),
+                    "Codigo"           to rs.getString("Codigo"),
+                    "Cliente"          to rs.getString("ClienteNombre"),
+                    "Total"            to rs.getDouble("Total"),
+                    "Estado"           to rs.getString("Estado"),
+                    "FechaEmision"     to (rs.getString("FechaEmision") ?: ""),
+                    "FechaVencimiento" to (rs.getString("FechaVencimiento") ?: ""),
+                    "FormaPago"        to (rs.getString("FormaPago") ?: "")
+                ))
+            }
+        } catch (e: Exception) { Log.e("RailwayDB", "Error facturas: ${e.message}") }
+        finally { conn?.close() }
+        return@withContext list
+    }
+
+    suspend fun getFacturaById(idFact: Int): Map<String, Any>? = withContext(Dispatchers.IO) {
+        var conn: Connection? = null
+        try {
+            conn = getConnection()
+            val query = """
+                SELECT f.*,
+                       c.RazonSocial, c.Documento as ClientRUC,
+                       c.Direccion as ClientDir, c.Contacto as ClientContact,
+                       c.Email as ClientEmail,
+                       u.Nombres as UserName, u.Apellidos as UserLast,
+                       e.Nombre as EmpresaNombre, e.RUC as EmpresaRUC,
+                       e.Direccion as EmpresaDir, e.Telefono as EmpresaTel
+                FROM FACTURA f
+                INNER JOIN CLIENTE c ON f.IdCliente = c.IdCliente
+                INNER JOIN USUARIO u ON f.IdUsuario = u.IdUsuario
+                INNER JOIN EMPRESA e ON f.IdEmpresa = e.IdEmpresa
+                WHERE f.IdFactura = ?
+            """.trimIndent()
+            val pstmt = conn.prepareStatement(query)
+            pstmt.setInt(1, idFact)
+            val rs = pstmt.executeQuery()
+            if (rs.next()) {
+                val map = mutableMapOf<String, Any>()
+                map["IdFactura"]       = rs.getInt("IdFactura")
+                map["Codigo"]          = rs.getString("Codigo")
+                map["FechaEmision"]    = rs.getString("FechaEmision") ?: ""
+                map["FechaVencimiento"]= rs.getString("FechaVencimiento") ?: ""
+                map["Estado"]          = rs.getString("Estado") ?: "PENDIENTE"
+                map["SubTotal"]        = rs.getDouble("SubTotal")
+                map["TotalIGV"]        = rs.getDouble("TotalIGV")
+                map["Total"]           = rs.getDouble("Total")
+                map["FormaPago"]       = rs.getString("FormaPago") ?: "CONTADO"
+                map["Observaciones"]   = rs.getString("Observaciones") ?: ""
+                // Cliente
+                map["ClientName"]    = rs.getString("RazonSocial") ?: ""
+                map["ClientRUC"]     = rs.getString("ClientRUC") ?: ""
+                map["ClientDir"]     = rs.getString("ClientDir") ?: "-"
+                map["ClientContact"] = rs.getString("ClientContact") ?: "-"
+                map["ClientEmail"]   = rs.getString("ClientEmail") ?: "-"
+                // Emisor
+                map["UserName"]      = rs.getString("UserName") ?: ""
+                map["UserLast"]      = rs.getString("UserLast") ?: ""
+                // Empresa
+                map["EmpresaNombre"] = rs.getString("EmpresaNombre") ?: "CARSIL SAC"
+                map["EmpresaRUC"]    = rs.getString("EmpresaRUC") ?: ""
+                map["EmpresaDir"]    = rs.getString("EmpresaDir") ?: ""
+                map["EmpresaTel"]    = rs.getString("EmpresaTel") ?: ""
+                return@withContext map
+            }
+        } catch (e: Exception) { Log.e("RailwayDB", "Error getFacturaById: ${e.message}") }
+        finally { conn?.close() }
+        return@withContext null
+    }
+
+    suspend fun getFacturaDetails(idFact: Int): List<Map<String, Any>> = withContext(Dispatchers.IO) {
+        var conn: Connection? = null
+        val list = mutableListOf<Map<String, Any>>()
+        try {
+            conn = getConnection()
+            val query = """
+                SELECT df.*, p.Nombre as ProductoNombre, p.Codigo as ProductoCodigo
+                FROM DETALLE_FACTURA df
+                INNER JOIN PRODUCTO p ON df.IdProducto = p.IdProducto
+                WHERE df.IdFactura = ?
+            """.trimIndent()
+            val pstmt = conn.prepareStatement(query)
+            pstmt.setInt(1, idFact)
+            val rs = pstmt.executeQuery()
+            while (rs.next()) {
+                list.add(mapOf(
+                    "Cantidad"       to rs.getDouble("Cantidad"),
+                    "Unidad"         to (rs.getString("UnidadMedida") ?: "UNID"),
+                    "Descripcion"    to rs.getString("ProductoNombre"),
+                    "PrecioUnitario" to rs.getDouble("PrecioUnitario"),
+                    "Total"          to rs.getDouble("Total")
+                ))
+            }
+        } catch (e: Exception) { Log.e("RailwayDB", "Error factura details: ${e.message}") }
+        finally { conn?.close() }
+        return@withContext list
+    }
 }
