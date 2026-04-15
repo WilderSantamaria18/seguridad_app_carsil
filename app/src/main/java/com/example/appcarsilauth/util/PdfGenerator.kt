@@ -278,268 +278,420 @@ object PdfGenerator {
         val page = pdfDocument.startPage(pageInfo)
         val canvas = page.canvas
 
-        val paint = Paint()
-        val textPaint = Paint()
-        val headerColor  = Color.parseColor("#1E1B4B") // Indigo oscuro
-        val accentIndigo = Color.parseColor("#6366F1") // Indigo primario
-        val accentBg     = Color.parseColor("#F5F3FF") // Fondo lila claro
-        val textColor    = Color.parseColor("#1F2937")
-        val grayColor    = Color.parseColor("#6B7280")
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+        val textPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+        val borderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeWidth = 1f
+            color = Color.parseColor("#E0E0E0")
+        }
 
-        // --- 1. BANDA SUPERIOR ---
-        paint.color = headerColor
-        canvas.drawRect(0f, 0f, 595f, 110f, paint)
+        val headerColor = Color.parseColor("#2c3e50")
+        val accentBg = Color.parseColor("#f8f9fa")
+        val textColor = Color.parseColor("#333333")
+        val mutedColor = Color.parseColor("#666666")
 
-        // Franja acento lateral derecho
-        paint.color = accentIndigo
-        canvas.drawRect(555f, 0f, 595f, 110f, paint)
+        fun valueAsString(key: String, fallback: String = "-"): String {
+            val value = factura[key]?.toString()?.trim().orEmpty()
+            return if (value.isBlank() || value.equals("null", ignoreCase = true)) fallback else value
+        }
 
-        // Logo
+        fun valueAsDouble(key: String): Double {
+            val value = factura[key] ?: return 0.0
+            return when (value) {
+                is Number -> value.toDouble()
+                is String -> value.replace(",", ".").toDoubleOrNull() ?: 0.0
+                else -> 0.0
+            }
+        }
+
+        fun formatMoney(amount: Double): String = "S/ ${"%.2f".format(Locale.US, amount)}"
+
+        fun normalizeDate(rawDate: String): String {
+            val cleaned = rawDate.trim()
+            if (cleaned.isEmpty() || cleaned == "-") return "-"
+            return cleaned.substringBefore("T").substringBefore(" ").take(10)
+        }
+
+        fun ellipsize(text: String, maxWidth: Float): String {
+            if (textPaint.measureText(text) <= maxWidth) return text
+            var candidate = text
+            while (candidate.isNotEmpty() && textPaint.measureText("$candidate...") > maxWidth) {
+                candidate = candidate.dropLast(1)
+            }
+            return if (candidate.isEmpty()) "..." else "$candidate..."
+        }
+
+        val codigo = valueAsString("Codigo", "SIN-CODIGO")
+        val estado = valueAsString("Estado", "PENDIENTE").uppercase(Locale.ROOT)
+        val estadoLower = estado.lowercase(Locale.ROOT)
+        val fechaEmision = normalizeDate(valueAsString("FechaEmision", "-"))
+        val fechaVencimiento = normalizeDate(valueAsString("FechaVencimiento", "-"))
+        val formaPago = valueAsString("FormaPago", "Según acuerdo comercial")
+        val observaciones = valueAsString("Observaciones", "")
+
+        val subTotal = valueAsDouble("SubTotal")
+        val totalIgv = valueAsDouble("TotalIGV")
+        val total = valueAsDouble("Total")
+
+        val clientName = valueAsString("ClientName", "Cliente no encontrado")
+        val clientDoc = valueAsString("ClientRUC", "-")
+        val clientDir = valueAsString("ClientDir", "-")
+        val clientContact = valueAsString("ClientContact", "-")
+        val clientEmail = valueAsString("ClientEmail", "-")
+
+        val userFullName = "${valueAsString("UserName", "Representante")} ${valueAsString("UserLast", "de Ventas")}".trim()
+        val empresaNombre = valueAsString("EmpresaNombre", "CARSIL EQUIPOS Y SERVICIOS S.A.C.")
+        val empresaRuc = valueAsString("EmpresaRUC", "20606030451")
+        val cuentaBancaria = valueAsString("CuentaBancaria", "")
+        val nombreCuenta = valueAsString("NombreCuentaBancaria", "CARSIL EQUIPOS Y SERVICIOS S.A.C.")
+
+        val statusBgColor = when (estadoLower) {
+            "pendiente" -> Color.parseColor("#fff3cd")
+            "pagada" -> Color.parseColor("#d4edda")
+            "vencida" -> Color.parseColor("#f8d7da")
+            "anulada" -> Color.parseColor("#e2e3e5")
+            else -> Color.parseColor("#fff3cd")
+        }
+        val statusTextColor = when (estadoLower) {
+            "pendiente" -> Color.parseColor("#856404")
+            "pagada" -> Color.parseColor("#155724")
+            "vencida" -> Color.parseColor("#721c24")
+            "anulada" -> Color.parseColor("#383d41")
+            else -> Color.parseColor("#856404")
+        }
+
+        val pageLeft = 24f
+        val pageRight = 571f
+
+        // Header: logo + info del documento
         try {
             val logo = BitmapFactory.decodeResource(context.resources, R.drawable.logo_carsil_app)
             if (logo != null) {
-                val scaledLogo = Bitmap.createScaledBitmap(logo, 75, 80, true)
-                canvas.drawBitmap(scaledLogo, 30f, 15f, paint)
+                val scaledLogo = Bitmap.createScaledBitmap(logo, 240, 72, true)
+                canvas.drawBitmap(scaledLogo, pageLeft, 34f, paint)
             }
         } catch (e: Exception) {
-            textPaint.color = Color.WHITE
+            textPaint.color = headerColor
             textPaint.textSize = 22f
             textPaint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            canvas.drawText("CARSIL", 30f, 60f, textPaint)
+            canvas.drawText("CARSIL", pageLeft, 72f, textPaint)
         }
 
-        // Empresa Nombre y RUC
-        textPaint.color = Color.WHITE
-        textPaint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-        textPaint.textSize = 13f
-        canvas.drawText(factura["EmpresaNombre"] as? String ?: "CARSIL SAC", 125f, 45f, textPaint)
-        textPaint.typeface = Typeface.DEFAULT
-        textPaint.textSize = 10f
-        textPaint.color = Color.parseColor("#C7D2FE")
-        canvas.drawText("RUC: ${factura["EmpresaRUC"]}", 125f, 62f, textPaint)
-        canvas.drawText(factura["EmpresaDir"] as? String ?: "", 125f, 77f, textPaint)
-
-        // Título documento
-        textPaint.color = Color.WHITE
-        textPaint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-        textPaint.textAlign = Paint.Align.RIGHT
-        textPaint.textSize = 16f
-        canvas.drawText("FACTURA ELECTRÓNICA", 540f, 45f, textPaint)
-        textPaint.textSize = 11f
-        textPaint.color = Color.parseColor("#A5B4FC")
-        canvas.drawText(factura["Codigo"] as? String ?: "", 540f, 65f, textPaint)
-        val estado = (factura["Estado"] as? String ?: "PENDIENTE").uppercase()
-        textPaint.textSize = 9f
-        textPaint.color = when(estado) {
-            "PAGADA" -> Color.parseColor("#6EE7B7")
-            "ANULADA" -> Color.parseColor("#FCA5A5")
-            else -> Color.parseColor("#FDE68A")
-        }
-        canvas.drawText("● $estado", 540f, 83f, textPaint)
-        textPaint.textAlign = Paint.Align.LEFT
-
-        // --- 2. BLOQUE INFO FACTURA + QR ---
-        // Recuadro izquierdo: datos de la factura
         paint.color = accentBg
-        canvas.drawRoundRect(20f, 118f, 290f, 210f, 10f, 10f, paint)
-        paint.color = accentIndigo
-        paint.style = Paint.Style.STROKE
-        paint.strokeWidth = 1f
-        canvas.drawRoundRect(20f, 118f, 290f, 210f, 10f, 10f, paint)
-        paint.style = Paint.Style.FILL
+        canvas.drawRoundRect(365f, 36f, pageRight, 122f, 5f, 5f, paint)
+        canvas.drawRoundRect(365f, 36f, pageRight, 122f, 5f, 5f, borderPaint)
 
-        textPaint.textSize = 9f
-        textPaint.color = grayColor
-        textPaint.typeface = Typeface.DEFAULT
-
-        fun drawInfoRow(label: String, value: String, y: Float) {
-            textPaint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            textPaint.color = grayColor
-            canvas.drawText(label, 30f, y, textPaint)
-            textPaint.typeface = Typeface.DEFAULT
-            textPaint.color = textColor
-            canvas.drawText(value, 120f, y, textPaint)
-        }
-        drawInfoRow("Fecha emisión:", factura["FechaEmision"] as? String ?: "-", 138f)
-        drawInfoRow("Vencimiento:", factura["FechaVencimiento"] as? String ?: "-", 153f)
-        drawInfoRow("Forma de pago:", factura["FormaPago"] as? String ?: "-", 168f)
-        drawInfoRow("Estado:", estado, 183f)
-        drawInfoRow("Total:", "S/ ${"%.2f".format(factura["Total"] as? Double ?: 0.0)}", 198f)
-
-        // QR CODE — generado con píxeles propios (sin ZXing)
-        val qrContent = buildString {
-            append("FACTURA:${factura["Codigo"]}")
-            append("|RUC:${factura["EmpresaRUC"]}")
-            append("|CLIENTE:${factura["ClientName"]}")
-            append("|TOTAL:${factura["Total"]}")
-            append("|ESTADO:$estado")
-        }
-        val qrBitmap = generateSimpleQrBitmap(qrContent, 90)
-        if (qrBitmap != null) {
-            // Marco del QR
-            paint.color = Color.WHITE
-            canvas.drawRoundRect(300f, 115f, 410f, 215f, 8f, 8f, paint)
-            paint.color = accentIndigo
-            paint.style = Paint.Style.STROKE
-            paint.strokeWidth = 1.5f
-            canvas.drawRoundRect(300f, 115f, 410f, 215f, 8f, 8f, paint)
-            paint.style = Paint.Style.FILL
-            canvas.drawBitmap(qrBitmap, 305f, 118f, paint)
-        }
-        // Leyenda QR
-        textPaint.textSize = 7f
-        textPaint.color = accentIndigo
-        textPaint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-        textPaint.textAlign = Paint.Align.CENTER
-        canvas.drawText("VERIFICACIÓN DIGITAL", 355f, 208f, textPaint)
-        textPaint.textAlign = Paint.Align.LEFT
-        textPaint.typeface = Typeface.DEFAULT
-
-        // --- 3. DATOS DEL CLIENTE ---
-        paint.color = accentIndigo
-        canvas.drawRect(20f, 222f, 24f, 242f, paint)
-
-        textPaint.textSize = 11f
         textPaint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
         textPaint.color = headerColor
-        canvas.drawText("DATOS DEL CLIENTE", 30f, 237f, textPaint)
-
-        paint.color = Color.parseColor("#F9FAFB")
-        canvas.drawRect(20f, 247f, 575f, 315f, paint)
-        paint.color = Color.parseColor("#E5E7EB")
-        paint.style = Paint.Style.STROKE
-        paint.strokeWidth = 0.8f
-        canvas.drawRect(20f, 247f, 575f, 315f, paint)
-        paint.style = Paint.Style.FILL
+        textPaint.textAlign = Paint.Align.CENTER
+        textPaint.textSize = 12.5f
+        canvas.drawText("FACTURA ELECTRÓNICA", 468f, 56f, textPaint)
 
         textPaint.typeface = Typeface.DEFAULT
-        textPaint.textSize = 10f
-        textPaint.color = textColor
-        canvas.drawText("Razón Social: ${factura["ClientName"]}", 30f, 265f, textPaint)
-        canvas.drawText("RUC / DNI:    ${factura["ClientRUC"]}", 30f, 280f, textPaint)
-        canvas.drawText("Dirección:    ${factura["ClientDir"]}", 30f, 295f, textPaint)
-        canvas.drawText("Contacto:    ${factura["ClientContact"]}", 310f, 265f, textPaint)
-        canvas.drawText("Email:         ${factura["ClientEmail"]}", 310f, 280f, textPaint)
+        textPaint.textSize = 10.5f
+        textPaint.color = Color.parseColor("#555555")
+        canvas.drawText("N° $codigo", 468f, 74f, textPaint)
 
-        // --- 4. TABLA DE PRODUCTOS ---
-        val tableY = 330f
+        val badgeTextWidth = textPaint.measureText(estado) + 16f
+        val badgeLeft = 468f - (badgeTextWidth / 2f)
+        val badgeRight = 468f + (badgeTextWidth / 2f)
+        paint.color = statusBgColor
+        canvas.drawRoundRect(badgeLeft, 80f, badgeRight, 96f, 8f, 8f, paint)
+        textPaint.color = statusTextColor
+        textPaint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+        textPaint.textSize = 8.5f
+        canvas.drawText(estado, 468f, 91f, textPaint)
+
+        textPaint.typeface = Typeface.DEFAULT
+        textPaint.textSize = 8.6f
+        textPaint.color = mutedColor
+        canvas.drawText("Fecha: $fechaEmision", 468f, 106f, textPaint)
+        if (fechaVencimiento != "-") {
+            canvas.drawText("Vencimiento: $fechaVencimiento", 468f, 118f, textPaint)
+        }
+        textPaint.textAlign = Paint.Align.LEFT
+
         paint.color = headerColor
-        canvas.drawRect(20f, tableY, 575f, tableY + 26f, paint)
+        canvas.drawRect(pageLeft, 130f, pageRight, 132f, paint)
 
-        textPaint.color = Color.WHITE
+        // Bloque cliente
+        paint.color = accentBg
+        canvas.drawRect(pageLeft, 150f, pageRight, 243f, paint)
+        canvas.drawRect(pageLeft, 150f, pageRight, 243f, borderPaint)
+        paint.color = headerColor
+        canvas.drawRect(pageLeft, 150f, pageLeft + 4f, 243f, paint)
+
         textPaint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-        textPaint.textSize = 9f
-        canvas.drawText("#",          28f,  tableY + 17f, textPaint)
-        canvas.drawText("CANT",       55f,  tableY + 17f, textPaint)
-        canvas.drawText("UNID",       100f, tableY + 17f, textPaint)
-        canvas.drawText("DESCRIPCIÓN",150f, tableY + 17f, textPaint)
-        canvas.drawText("P. UNIT",    430f, tableY + 17f, textPaint)
-        canvas.drawText("TOTAL",      510f, tableY + 17f, textPaint)
+        textPaint.color = headerColor
+        textPaint.textSize = 10.5f
+        canvas.drawText("DATOS DEL CLIENTE", pageLeft + 10f, 164f, textPaint)
 
-        var currentY = tableY + 26f
+        paint.color = Color.parseColor("#DEE2E6")
+        canvas.drawRect(pageLeft + 10f, 169f, pageRight - 10f, 170f, paint)
+
         textPaint.typeface = Typeface.DEFAULT
         textPaint.color = textColor
+        textPaint.textSize = 8.8f
+        canvas.drawText("Razón Social:", pageLeft + 12f, 184f, textPaint)
+        canvas.drawText(clientName, pageLeft + 96f, 184f, textPaint)
+        canvas.drawText("RUC/DNI:", pageLeft + 12f, 197f, textPaint)
+        canvas.drawText(clientDoc, pageLeft + 96f, 197f, textPaint)
+        canvas.drawText("Dirección:", pageLeft + 12f, 210f, textPaint)
+        canvas.drawText(clientDir, pageLeft + 96f, 210f, textPaint)
+        canvas.drawText("Contacto:", pageLeft + 12f, 223f, textPaint)
+        canvas.drawText(clientContact, pageLeft + 96f, 223f, textPaint)
+        canvas.drawText("Email:", pageLeft + 12f, 236f, textPaint)
+        canvas.drawText(clientEmail, pageLeft + 96f, 236f, textPaint)
 
-        detalles.forEachIndexed { index, det ->
-            if (index % 2 != 0) {
-                paint.color = Color.parseColor("#F0EFFE")
-                canvas.drawRect(20f, currentY, 575f, currentY + 22f, paint)
+        // Tabla de productos
+        val tableTop = 258f
+        val headerHeight = 22f
+        val rowHeight = 18f
+        paint.color = headerColor
+        canvas.drawRect(pageLeft, tableTop, pageRight, tableTop + headerHeight, paint)
+
+        textPaint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+        textPaint.textSize = 8.2f
+        textPaint.color = Color.WHITE
+        canvas.drawText("#", pageLeft + 8f, tableTop + 14.5f, textPaint)
+        canvas.drawText("CANT", pageLeft + 33f, tableTop + 14.5f, textPaint)
+        canvas.drawText("UNID", pageLeft + 70f, tableTop + 14.5f, textPaint)
+        canvas.drawText("DESCRIPCIÓN", pageLeft + 118f, tableTop + 14.5f, textPaint)
+        textPaint.textAlign = Paint.Align.RIGHT
+        canvas.drawText("P. UNIT.", 486f, tableTop + 14.5f, textPaint)
+        canvas.drawText("TOTAL", 562f, tableTop + 14.5f, textPaint)
+
+        textPaint.textAlign = Paint.Align.LEFT
+        textPaint.typeface = Typeface.DEFAULT
+        textPaint.textSize = 8.5f
+        textPaint.color = textColor
+
+        var currentY = tableTop + headerHeight
+        val maxRows = 9
+        val hasOverflow = detalles.size > maxRows
+        val dataRows = if (hasOverflow) detalles.take(maxRows - 1) else detalles
+
+        if (detalles.isEmpty()) {
+            paint.color = Color.parseColor("#F9F9F9")
+            canvas.drawRect(pageLeft, currentY, pageRight, currentY + rowHeight, paint)
+            textPaint.textAlign = Paint.Align.CENTER
+            canvas.drawText("No hay productos registrados en esta factura.", (pageLeft + pageRight) / 2f, currentY + 12.5f, textPaint)
+            textPaint.textAlign = Paint.Align.LEFT
+            currentY += rowHeight
+        } else {
+            dataRows.forEachIndexed { index, det ->
+                if (index % 2 != 0) {
+                    paint.color = Color.parseColor("#F9F9F9")
+                    canvas.drawRect(pageLeft, currentY, pageRight, currentY + rowHeight, paint)
+                }
+
+                val cantidad = when (val raw = det["Cantidad"]) {
+                    is Number -> raw.toDouble()
+                    is String -> raw.toDoubleOrNull() ?: 0.0
+                    else -> 0.0
+                }
+                val unidad = det["Unidad"]?.toString()?.ifBlank { "UND" } ?: "UND"
+                val descripcion = det["Descripcion"]?.toString()?.ifBlank { "Producto" } ?: "Producto"
+                val pUnit = when (val raw = det["PrecioUnitario"]) {
+                    is Number -> raw.toDouble()
+                    is String -> raw.toDoubleOrNull() ?: 0.0
+                    else -> 0.0
+                }
+                val totalLinea = when (val raw = det["Total"]) {
+                    is Number -> raw.toDouble()
+                    is String -> raw.toDoubleOrNull() ?: 0.0
+                    else -> 0.0
+                }
+
+                canvas.drawText((index + 1).toString(), pageLeft + 8f, currentY + 12.5f, textPaint)
+                canvas.drawText("%.0f".format(Locale.US, cantidad), pageLeft + 35f, currentY + 12.5f, textPaint)
+                canvas.drawText(unidad, pageLeft + 72f, currentY + 12.5f, textPaint)
+                canvas.drawText(ellipsize(descripcion, 320f), pageLeft + 118f, currentY + 12.5f, textPaint)
+
+                textPaint.textAlign = Paint.Align.RIGHT
+                canvas.drawText("%.2f".format(Locale.US, pUnit), 486f, currentY + 12.5f, textPaint)
+                canvas.drawText("%.2f".format(Locale.US, totalLinea), 562f, currentY + 12.5f, textPaint)
+                textPaint.textAlign = Paint.Align.LEFT
+
+                currentY += rowHeight
             }
-            textPaint.textSize = 9f
-            canvas.drawText((index + 1).toString(), 28f, currentY + 15f, textPaint)
-            canvas.drawText("%.0f".format(det["Cantidad"] as? Double ?: 0.0), 55f, currentY + 15f, textPaint)
-            canvas.drawText(det["Unidad"].toString(), 100f, currentY + 15f, textPaint)
 
-            val desc = det["Descripcion"].toString()
-            val cleanDesc = if (desc.length > 38) desc.take(35) + "..." else desc
-            canvas.drawText(cleanDesc, 150f, currentY + 15f, textPaint)
-            canvas.drawText("S/ ${"%.2f".format(det["PrecioUnitario"] as? Double ?: 0.0)}", 430f, currentY + 15f, textPaint)
-            canvas.drawText("S/ ${"%.2f".format(det["Total"] as? Double ?: 0.0)}", 510f, currentY + 15f, textPaint)
-            currentY += 22f
+            if (hasOverflow) {
+                paint.color = Color.parseColor("#F1F3F5")
+                canvas.drawRect(pageLeft, currentY, pageRight, currentY + rowHeight, paint)
+                textPaint.textAlign = Paint.Align.CENTER
+                textPaint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+                canvas.drawText("... y ${detalles.size - dataRows.size} producto(s) adicional(es)", (pageLeft + pageRight) / 2f, currentY + 12.5f, textPaint)
+                textPaint.typeface = Typeface.DEFAULT
+                textPaint.textAlign = Paint.Align.LEFT
+                currentY += rowHeight
+            }
         }
 
-        // Línea inferior tabla
-        paint.color = Color.parseColor("#E5E7EB")
-        paint.style = Paint.Style.STROKE
-        paint.strokeWidth = 1f
-        canvas.drawLine(20f, currentY, 575f, currentY, paint)
-        paint.style = Paint.Style.FILL
+        canvas.drawRect(pageLeft, tableTop, pageRight, currentY, borderPaint)
 
-        // --- 5. TOTALES ---
-        currentY += 15f
-        val totX = 380f
+        // Totales
+        val totalsTop = currentY + 14f
+        val totalsLeft = 395f
+        val labelRight = 470f
+        val totalsRowHeight = 18f
+        val totalsBottom = totalsTop + (totalsRowHeight * 3f)
 
         paint.color = accentBg
-        canvas.drawRect(totX, currentY, 575f, currentY + 70f, paint)
-        paint.color = accentIndigo
-        paint.style = Paint.Style.STROKE
-        paint.strokeWidth = 0.8f
-        canvas.drawRect(totX, currentY, 575f, currentY + 70f, paint)
-        paint.style = Paint.Style.FILL
+        canvas.drawRect(totalsLeft, totalsTop, pageRight, totalsBottom, paint)
+        canvas.drawRect(totalsLeft, totalsTop, pageRight, totalsBottom, borderPaint)
 
-        textPaint.textSize = 9.5f
-        textPaint.color = grayColor
-        canvas.drawText("SUB TOTAL",   totX + 10f, currentY + 18f, textPaint)
-        canvas.drawText("IGV (18%)",   totX + 10f, currentY + 36f, textPaint)
+        val totalLabels = listOf("SUB TOTAL", "IGV (18%)", "TOTAL S/")
+        val totalValues = listOf(formatMoney(subTotal), formatMoney(totalIgv), formatMoney(total))
 
-        textPaint.textAlign = Paint.Align.RIGHT
-        canvas.drawText("S/ ${"%.2f".format(factura["SubTotal"] as? Double ?: 0.0)}", 565f, currentY + 18f, textPaint)
-        canvas.drawText("S/ ${"%.2f".format(factura["TotalIGV"] as? Double ?: 0.0)}", 565f, currentY + 36f, textPaint)
+        totalLabels.forEachIndexed { index, label ->
+            val rowTop = totalsTop + (index * totalsRowHeight)
+            val rowBottom = rowTop + totalsRowHeight
 
-        paint.color = accentIndigo
-        canvas.drawRect(totX, currentY + 45f, 575f, currentY + 70f, paint)
-        textPaint.color = Color.WHITE
-        textPaint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-        textPaint.textSize = 11f
-        canvas.drawText("S/ ${"%.2f".format(factura["Total"] as? Double ?: 0.0)}", 565f, currentY + 62f, textPaint)
+            paint.color = headerColor
+            canvas.drawRect(totalsLeft, rowTop, labelRight, rowBottom, paint)
+            paint.color = if (index == 2) Color.parseColor("#E9ECEF") else Color.WHITE
+            canvas.drawRect(labelRight, rowTop, pageRight, rowBottom, paint)
+
+            textPaint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            textPaint.textSize = 8.4f
+            textPaint.color = Color.WHITE
+            textPaint.textAlign = Paint.Align.LEFT
+            canvas.drawText(label, totalsLeft + 7f, rowTop + 12.4f, textPaint)
+
+            textPaint.color = textColor
+            textPaint.textAlign = Paint.Align.RIGHT
+            canvas.drawText(totalValues[index], pageRight - 8f, rowTop + 12.4f, textPaint)
+        }
         textPaint.textAlign = Paint.Align.LEFT
-        canvas.drawText("IMPORTE TOTAL S/", totX + 10f, currentY + 62f, textPaint)
-        textPaint.typeface = Typeface.DEFAULT
 
-        // --- 6. OBSERVACIONES / CONDICIONES ---
-        val obsY = currentY + 100f
-        val obs = factura["Observaciones"] as? String ?: ""
-        textPaint.textSize = 9f
+        // Condiciones
+        val condicionesTop = totalsBottom + 14f
+        val condicionesHeight = if (fechaVencimiento != "-") 78f else 65f
+        val condicionesBottom = condicionesTop + condicionesHeight
+
+        paint.color = accentBg
+        canvas.drawRect(pageLeft, condicionesTop, pageRight, condicionesBottom, paint)
+        canvas.drawRect(pageLeft, condicionesTop, pageRight, condicionesBottom, borderPaint)
+        paint.color = headerColor
+        canvas.drawRect(pageLeft, condicionesTop, pageLeft + 4f, condicionesBottom, paint)
+
+        textPaint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
         textPaint.color = headerColor
-        textPaint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-        canvas.drawText("CONDICIONES COMERCIALES", 20f, obsY, textPaint)
-        textPaint.typeface = Typeface.DEFAULT
-        textPaint.color = grayColor
-        canvas.drawText("Forma de pago: ${factura["FormaPago"]}", 20f, obsY + 14f, textPaint)
-        if (obs.isNotEmpty()) {
-            canvas.drawText("Obs.: $obs", 20f, obsY + 28f, textPaint)
-        }
+        textPaint.textSize = 9f
+        canvas.drawText("CONDICIONES DE PAGO", pageLeft + 10f, condicionesTop + 15f, textPaint)
 
-        // --- 7. FIRMA Y PIE ---
-        val signY = 760f
-        paint.color = Color.parseColor("#E5E7EB")
-        canvas.drawLine(20f, signY, 210f, signY, paint)
-        textPaint.textSize = 9.5f
+        textPaint.typeface = Typeface.DEFAULT
         textPaint.color = textColor
-        textPaint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-        canvas.drawText("${factura["UserName"]} ${factura["UserLast"]}", 20f, signY + 14f, textPaint)
-        textPaint.typeface = Typeface.DEFAULT
-        textPaint.color = grayColor
-        canvas.drawText("Representante Comercial - CARSIL SAC", 20f, signY + 28f, textPaint)
+        textPaint.textSize = 8.4f
+        var condLineY = condicionesTop + 28f
+        canvas.drawText("Forma de pago: $formaPago", pageLeft + 10f, condLineY, textPaint)
 
-        // Color de sello estado
-        val selloColor = when(estado) {
-            "PAGADA" -> Color.parseColor("#16A34A")
-            "ANULADA" -> Color.parseColor("#DC2626")
-            else -> Color.parseColor("#D97706")
-        }
-        paint.color = selloColor
-        paint.style = Paint.Style.STROKE
-        paint.strokeWidth = 3f
-        val selloX = 475f; val selloY = 755f
-        canvas.drawRoundRect(selloX, selloY, selloX + 90f, selloY + 40f, 6f, 6f, paint)
-        paint.style = Paint.Style.FILL
-        textPaint.color = selloColor
+        condLineY += 12f
         textPaint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-        textPaint.textSize = 14f
+        canvas.drawText("Estado:", pageLeft + 10f, condLineY, textPaint)
+        textPaint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+        textPaint.textSize = 7.6f
+        val condBadgeWidth = textPaint.measureText(estado) + 12f
+        val condBadgeLeft = pageLeft + 53f
+        paint.color = statusBgColor
+        canvas.drawRoundRect(condBadgeLeft, condLineY - 8.5f, condBadgeLeft + condBadgeWidth, condLineY + 3.2f, 7f, 7f, paint)
+        textPaint.color = statusTextColor
+        canvas.drawText(estado, condBadgeLeft + 6f, condLineY, textPaint)
+
+        textPaint.typeface = Typeface.DEFAULT
+        textPaint.textSize = 8.4f
+        textPaint.color = textColor
+        if (fechaVencimiento != "-") {
+            condLineY += 12f
+            canvas.drawText("Vencimiento: $fechaVencimiento", pageLeft + 10f, condLineY, textPaint)
+        }
+
+        condLineY += 12f
+        val cuentaTexto = if (cuentaBancaria.isBlank()) {
+            "Solicitar datos de cuenta"
+        } else {
+            "$nombreCuenta  N° $cuentaBancaria"
+        }
+        canvas.drawText("Cuenta bancaria: $cuentaTexto", pageLeft + 10f, condLineY, textPaint)
+
+        // Observaciones
+        var signatureTop = condicionesBottom + 16f
+        if (observaciones.isNotBlank()) {
+            val obsTop = signatureTop
+            val obsBottom = obsTop + 50f
+            paint.color = accentBg
+            canvas.drawRect(pageLeft, obsTop, pageRight, obsBottom, paint)
+            canvas.drawRect(pageLeft, obsTop, pageRight, obsBottom, borderPaint)
+            paint.color = headerColor
+            canvas.drawRect(pageLeft, obsTop, pageLeft + 4f, obsBottom, paint)
+
+            textPaint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            textPaint.textSize = 9f
+            textPaint.color = headerColor
+            canvas.drawText("OBSERVACIONES", pageLeft + 10f, obsTop + 15f, textPaint)
+
+            textPaint.typeface = Typeface.DEFAULT
+            textPaint.textSize = 8.4f
+            textPaint.color = textColor
+            canvas.drawText(ellipsize(observaciones, pageRight - pageLeft - 24f), pageLeft + 10f, obsTop + 31f, textPaint)
+            signatureTop = obsBottom + 16f
+        }
+
+        // Firma
+        paint.color = Color.parseColor("#E0E0E0")
+        canvas.drawRect(pageLeft, signatureTop, pageRight, signatureTop + 1f, paint)
+
+        textPaint.color = textColor
+        textPaint.textSize = 8.8f
+        textPaint.typeface = Typeface.DEFAULT
+        canvas.drawText("Atentamente,", pageLeft + 2f, signatureTop + 16f, textPaint)
+
+        textPaint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+        canvas.drawText(userFullName.uppercase(Locale.ROOT), pageLeft + 2f, signatureTop + 39f, textPaint)
+
+        textPaint.typeface = Typeface.DEFAULT
+        textPaint.textSize = 8.4f
+        textPaint.color = mutedColor
+        canvas.drawText(empresaNombre, pageLeft + 2f, signatureTop + 52f, textPaint)
+
+        // Nota legal
         textPaint.textAlign = Paint.Align.CENTER
-        canvas.drawText(estado, selloX + 45f, selloY + 26f, textPaint)
+        textPaint.textSize = 7.6f
+        textPaint.color = Color.parseColor("#888888")
+        canvas.drawText("Documento con validez legal y tributaria", (pageLeft + pageRight) / 2f, signatureTop + 70f, textPaint)
+
+        // Bloque QR
+        val qrTop = signatureTop + 82f
+        val qrBottom = qrTop + 74f
+        paint.color = Color.parseColor("#FAFAFA")
+        canvas.drawRoundRect(pageLeft, qrTop, pageRight, qrBottom, 4f, 4f, paint)
+        canvas.drawRoundRect(pageLeft, qrTop, pageRight, qrBottom, 4f, 4f, borderPaint)
+
         textPaint.textAlign = Paint.Align.LEFT
+        textPaint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+        textPaint.textSize = 8.4f
+        textPaint.color = headerColor
+        canvas.drawText("Representación impresa de la Factura Electrónica", pageLeft + 10f, qrTop + 14f, textPaint)
+
+        textPaint.typeface = Typeface.DEFAULT
+        textPaint.textSize = 7.4f
+        textPaint.color = mutedColor
+        canvas.drawText("RUC: $empresaRuc", pageLeft + 10f, qrTop + 27f, textPaint)
+        canvas.drawText("FACTURA ELECTRÓNICA: $codigo", pageLeft + 10f, qrTop + 38f, textPaint)
+        canvas.drawText("Fecha de emisión: $fechaEmision", pageLeft + 10f, qrTop + 49f, textPaint)
+        canvas.drawText("Monto total: ${formatMoney(total)}", pageLeft + 10f, qrTop + 60f, textPaint)
+        canvas.drawText("Consulte el documento en: www.sunat.gob.pe", pageLeft + 10f, qrTop + 71f, textPaint)
+
+        val qrData = "$empresaRuc|01|$codigo|$fechaEmision|${"%.2f".format(Locale.US, total)}"
+        val qrBitmap = generateSimpleQrBitmap(qrData, 60)
+        paint.color = Color.WHITE
+        canvas.drawRect(490f, qrTop + 7f, 554f, qrTop + 71f, paint)
+        canvas.drawRect(490f, qrTop + 7f, 554f, qrTop + 71f, borderPaint)
+        if (qrBitmap != null) {
+            canvas.drawBitmap(qrBitmap, 492f, qrTop + 9f, paint)
+        }
 
         pdfDocument.finishPage(page)
 

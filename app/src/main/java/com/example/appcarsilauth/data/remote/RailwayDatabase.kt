@@ -3,10 +3,18 @@ package com.example.appcarsilauth.data.remote
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.text.SimpleDateFormat
 import java.sql.Connection
 import java.sql.DriverManager
 import java.sql.ResultSet
+import java.util.Calendar
+import java.util.Locale
 import java.util.Properties
+
+data class ProformaActivitySeries(
+    val labels: List<String>,
+    val values: List<Int>
+)
 
 object RailwayDatabase {
     private const val HOST = "mainline.proxy.rlwy.net"
@@ -83,6 +91,260 @@ object RailwayDatabase {
             }
         } catch (e: Throwable) { throw e } finally { try { conn?.close() } catch (e: Exception) {} }
         return@withContext null
+    }
+
+    // --- USUARIOS / ROLES ---
+    suspend fun getRoles(): List<Map<String, Any>> = withContext(Dispatchers.IO) {
+        var conn: Connection? = null
+        val roles = mutableListOf<Map<String, Any>>()
+        try {
+            conn = getConnection()
+            val query = "SELECT IdRol, Descripcion FROM ROL ORDER BY IdRol ASC"
+            val pstmt = conn.prepareStatement(query)
+            val rs = pstmt.executeQuery()
+            while (rs.next()) {
+                roles.add(
+                    mapOf(
+                        "IdRol" to rs.getInt("IdRol"),
+                        "Descripcion" to rs.getString("Descripcion")
+                    )
+                )
+            }
+        } catch (e: Exception) {
+            Log.e("RailwayDB", "Error roles: ${e.message}")
+        } finally { conn?.close() }
+        return@withContext roles
+    }
+
+    suspend fun getUsers(search: String = "", estadoFiltro: String = "TODOS"): List<Map<String, Any>> = withContext(Dispatchers.IO) {
+        var conn: Connection? = null
+        val users = mutableListOf<Map<String, Any>>()
+        try {
+            conn = getConnection()
+
+            val estadoCondition = when (estadoFiltro.uppercase()) {
+                "ACTIVOS" -> " AND u.Estado = 1"
+                "INACTIVOS" -> " AND u.Estado = 0"
+                else -> ""
+            }
+
+            val query = """
+                SELECT
+                    u.IdUsuario,
+                    u.Nombres,
+                    u.Apellidos,
+                    u.TipoDocumento,
+                    u.NumeroDocumento,
+                    COALESCE(u.Correo, '') AS Correo,
+                    COALESCE(u.Telefono, '') AS Telefono,
+                    COALESCE(u.Direccion, '') AS Direccion,
+                    u.IdRol,
+                    u.Estado,
+                    r.Descripcion AS RolNombre
+                FROM USUARIO u
+                INNER JOIN ROL r ON u.IdRol = r.IdRol
+                WHERE (
+                    u.Nombres LIKE ? OR
+                    u.Apellidos LIKE ? OR
+                    u.NumeroDocumento LIKE ? OR
+                    u.Correo LIKE ? OR
+                    r.Descripcion LIKE ?
+                )$estadoCondition
+                ORDER BY u.IdUsuario DESC
+            """.trimIndent()
+
+            val likeSearch = "%${search.trim()}%"
+            val pstmt = conn.prepareStatement(query)
+            pstmt.setString(1, likeSearch)
+            pstmt.setString(2, likeSearch)
+            pstmt.setString(3, likeSearch)
+            pstmt.setString(4, likeSearch)
+            pstmt.setString(5, likeSearch)
+
+            val rs = pstmt.executeQuery()
+            while (rs.next()) {
+                users.add(
+                    mapOf(
+                        "IdUsuario" to rs.getInt("IdUsuario"),
+                        "Nombres" to rs.getString("Nombres"),
+                        "Apellidos" to rs.getString("Apellidos"),
+                        "TipoDocumento" to (rs.getString("TipoDocumento") ?: "DNI"),
+                        "NumeroDocumento" to rs.getString("NumeroDocumento"),
+                        "Correo" to (rs.getString("Correo") ?: ""),
+                        "Telefono" to (rs.getString("Telefono") ?: ""),
+                        "Direccion" to (rs.getString("Direccion") ?: ""),
+                        "IdRol" to rs.getInt("IdRol"),
+                        "RolNombre" to rs.getString("RolNombre"),
+                        "Estado" to rs.getInt("Estado")
+                    )
+                )
+            }
+        } catch (e: Exception) {
+            Log.e("RailwayDB", "Error usuarios: ${e.message}")
+        } finally { conn?.close() }
+        return@withContext users
+    }
+
+    suspend fun isUserDocumentInUse(numeroDocumento: String, excludeId: Int? = null): Boolean = withContext(Dispatchers.IO) {
+        var conn: Connection? = null
+        try {
+            conn = getConnection()
+            val query = if (excludeId != null) {
+                "SELECT IdUsuario FROM USUARIO WHERE NumeroDocumento = ? AND IdUsuario <> ? LIMIT 1"
+            } else {
+                "SELECT IdUsuario FROM USUARIO WHERE NumeroDocumento = ? LIMIT 1"
+            }
+            val pstmt = conn.prepareStatement(query)
+            pstmt.setString(1, numeroDocumento.trim())
+            if (excludeId != null) {
+                pstmt.setInt(2, excludeId)
+            }
+            val rs = pstmt.executeQuery()
+            return@withContext rs.next()
+        } catch (e: Exception) {
+            Log.e("RailwayDB", "Error validar documento usuario: ${e.message}")
+            false
+        } finally { conn?.close() }
+    }
+
+    suspend fun isUserEmailInUse(correo: String, excludeId: Int? = null): Boolean = withContext(Dispatchers.IO) {
+        var conn: Connection? = null
+        try {
+            conn = getConnection()
+            val query = if (excludeId != null) {
+                "SELECT IdUsuario FROM USUARIO WHERE Correo = ? AND IdUsuario <> ? LIMIT 1"
+            } else {
+                "SELECT IdUsuario FROM USUARIO WHERE Correo = ? LIMIT 1"
+            }
+            val pstmt = conn.prepareStatement(query)
+            pstmt.setString(1, correo.trim())
+            if (excludeId != null) {
+                pstmt.setInt(2, excludeId)
+            }
+            val rs = pstmt.executeQuery()
+            return@withContext rs.next()
+        } catch (e: Exception) {
+            Log.e("RailwayDB", "Error validar correo usuario: ${e.message}")
+            false
+        } finally { conn?.close() }
+    }
+
+    suspend fun insertUser(user: Map<String, Any?>): Int = withContext(Dispatchers.IO) {
+        var conn: Connection? = null
+        try {
+            conn = getConnection()
+            val query = """
+                INSERT INTO USUARIO (
+                    Nombres,
+                    Apellidos,
+                    TipoDocumento,
+                    NumeroDocumento,
+                    Correo,
+                    Clave,
+                    IdRol,
+                    Estado,
+                    Telefono,
+                    Direccion,
+                    FechaRegistro
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+            """.trimIndent()
+
+            val pstmt = conn.prepareStatement(query, java.sql.Statement.RETURN_GENERATED_KEYS)
+            pstmt.setString(1, user["Nombres"] as? String)
+            pstmt.setString(2, user["Apellidos"] as? String)
+            pstmt.setString(3, user["TipoDocumento"] as? String ?: "DNI")
+            pstmt.setString(4, user["NumeroDocumento"] as? String)
+            pstmt.setString(5, user["Correo"] as? String)
+            pstmt.setString(6, user["Clave"] as? String)
+            pstmt.setInt(7, user["IdRol"] as Int)
+            pstmt.setInt(8, user["Estado"] as? Int ?: 1)
+            pstmt.setString(9, user["Telefono"] as? String)
+            pstmt.setString(10, user["Direccion"] as? String)
+            pstmt.executeUpdate()
+
+            val rs = pstmt.generatedKeys
+            if (rs.next()) return@withContext rs.getInt(1)
+        } catch (e: Exception) {
+            Log.e("RailwayDB", "Error insert usuario: ${e.message}")
+        } finally { conn?.close() }
+        return@withContext -1
+    }
+
+    suspend fun updateUser(
+        idUsuario: Int,
+        nombres: String,
+        apellidos: String,
+        tipoDocumento: String,
+        numeroDocumento: String,
+        correo: String,
+        telefono: String,
+        direccion: String,
+        idRol: Int,
+        estado: Int,
+        newPasswordHash: String?
+    ): Boolean = withContext(Dispatchers.IO) {
+        var conn: Connection? = null
+        try {
+            conn = getConnection()
+            val query = if (newPasswordHash != null) {
+                """
+                    UPDATE USUARIO
+                    SET Nombres = ?, Apellidos = ?, TipoDocumento = ?, NumeroDocumento = ?, Correo = ?,
+                        Telefono = ?, Direccion = ?, IdRol = ?, Estado = ?, Clave = ?
+                    WHERE IdUsuario = ?
+                """.trimIndent()
+            } else {
+                """
+                    UPDATE USUARIO
+                    SET Nombres = ?, Apellidos = ?, TipoDocumento = ?, NumeroDocumento = ?, Correo = ?,
+                        Telefono = ?, Direccion = ?, IdRol = ?, Estado = ?
+                    WHERE IdUsuario = ?
+                """.trimIndent()
+            }
+
+            val pstmt = conn.prepareStatement(query)
+            pstmt.setString(1, nombres)
+            pstmt.setString(2, apellidos)
+            pstmt.setString(3, tipoDocumento)
+            pstmt.setString(4, numeroDocumento)
+            pstmt.setString(5, correo)
+            pstmt.setString(6, telefono)
+            pstmt.setString(7, direccion)
+            pstmt.setInt(8, idRol)
+            pstmt.setInt(9, estado)
+
+            if (newPasswordHash != null) {
+                pstmt.setString(10, newPasswordHash)
+                pstmt.setInt(11, idUsuario)
+            } else {
+                pstmt.setInt(10, idUsuario)
+            }
+
+            return@withContext pstmt.executeUpdate() > 0
+        } catch (e: Exception) {
+            Log.e("RailwayDB", "Error update usuario: ${e.message}")
+            false
+        } finally { conn?.close() }
+    }
+
+    suspend fun updateUserStatus(idUsuario: Int, estado: Int): Boolean = withContext(Dispatchers.IO) {
+        var conn: Connection? = null
+        try {
+            conn = getConnection()
+            val query = """
+                UPDATE USUARIO
+                SET Estado = ?, IntentosFallidos = 0, UltimoIntentoFallido = NULL
+                WHERE IdUsuario = ?
+            """.trimIndent()
+            val pstmt = conn.prepareStatement(query)
+            pstmt.setInt(1, estado)
+            pstmt.setInt(2, idUsuario)
+            return@withContext pstmt.executeUpdate() > 0
+        } catch (e: Exception) {
+            Log.e("RailwayDB", "Error estado usuario: ${e.message}")
+            false
+        } finally { conn?.close() }
     }
 
 
@@ -464,8 +726,8 @@ object RailwayDatabase {
                     (SELECT COUNT(*) FROM PRODUCTO) as productos,
                     (SELECT COUNT(*) FROM PRODUCTO WHERE FechaRegistro >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)) as productos_30d,
                     (SELECT COUNT(*) FROM PROFORMA) as proformas_total,
-                    (SELECT COUNT(*) FROM PROFORMA WHERE DATE(FechaEmision) = CURDATE()) as proformas_hoy,
-                    (SELECT COUNT(*) FROM PROFORMA WHERE DATE(FechaEmision) = DATE_SUB(CURDATE(), INTERVAL 1 DAY)) as proformas_ayer,
+                        (SELECT COUNT(*) FROM PROFORMA WHERE DATE(COALESCE(FechaRegistro, FechaEmision)) = CURDATE()) as proformas_hoy,
+                        (SELECT COUNT(*) FROM PROFORMA WHERE DATE(COALESCE(FechaRegistro, FechaEmision)) = DATE_SUB(CURDATE(), INTERVAL 1 DAY)) as proformas_ayer,
                     (SELECT COUNT(*) FROM EMPLEADO) as empleados,
                     (SELECT COUNT(*) FROM EMPLEADO WHERE FechaRegistro >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)) as empleados_30d
             """.trimIndent()
@@ -487,46 +749,156 @@ object RailwayDatabase {
         return@withContext stats
     }
 
-    suspend fun getProformaActivity(days: Int): List<Int> = withContext(Dispatchers.IO) {
+    suspend fun getProformaActivityWeekly(days: Int = 7): ProformaActivitySeries = withContext(Dispatchers.IO) {
         var conn: Connection? = null
-        val data = MutableList(days) { 0 }
+        val safeDays = days.coerceIn(1, 31)
+        val values = MutableList(safeDays) { 0 }
+        val labels = mutableListOf<String>()
+
         try {
             conn = getConnection()
-            // Usamos CONVERT_TZ para compensar UTC del servidor Render → UTC-5 (Perú)
-            // DATE(CONVERT_TZ(FechaEmision, '+00:00', '-05:00')) convierte correctamente el día peruano
             val query = """
-                SELECT DATE(CONVERT_TZ(FechaEmision, '+00:00', '-05:00')) as fecha,
-                       COUNT(*) as cantidad
+                SELECT DATE_FORMAT(DATE(COALESCE(FechaRegistro, FechaEmision)), '%Y-%m-%d') AS fecha,
+                       COUNT(*) AS cantidad
                 FROM PROFORMA
-                WHERE DATE(CONVERT_TZ(FechaEmision, '+00:00', '-05:00'))
-                      >= DATE(CONVERT_TZ(NOW(), '+00:00', '-05:00')) - INTERVAL ? DAY
-                GROUP BY fecha
+                WHERE DATE(COALESCE(FechaRegistro, FechaEmision))
+                      BETWEEN DATE_SUB(CURDATE(), INTERVAL ${safeDays - 1} DAY) AND CURDATE()
+                GROUP BY DATE(COALESCE(FechaRegistro, FechaEmision))
                 ORDER BY fecha ASC
             """.trimIndent()
-            val pstmt = conn.prepareStatement(query)
-            pstmt.setInt(1, days - 1)   // hoy-6 .. hoy = 7 días
-            val rs = pstmt.executeQuery()
+            val rs = conn.prepareStatement(query).executeQuery()
 
-            // Construimos el mapa de fecha → cantidad
             val countsMap = mutableMapOf<String, Int>()
             while (rs.next()) {
                 countsMap[rs.getString("fecha")] = rs.getInt("cantidad")
             }
 
-            // Llenamos el arreglo posición a posición (posición 0 = hoy-6, ..., posición 6 = hoy)
-            // El dispositivo ya está en hora local (UTC-5), así que usamos su calendario
-            val sdf = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
-            val calendar = java.util.Calendar.getInstance()
-            calendar.add(java.util.Calendar.DAY_OF_YEAR, -(days - 1))
-            for (i in 0 until days) {
-                val dateStr = sdf.format(calendar.time)
-                data[i] = countsMap[dateStr] ?: 0
-                calendar.add(java.util.Calendar.DAY_OF_YEAR, 1)
+            val baseDateQuery = "SELECT DATE_FORMAT(CURDATE(), '%Y-%m-%d') AS fechaBase"
+            val baseDateRs = conn.prepareStatement(baseDateQuery).executeQuery()
+
+            val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+            val baseCalendar = Calendar.getInstance()
+            if (baseDateRs.next()) {
+                val baseDate = sdf.parse(baseDateRs.getString("fechaBase"))
+                if (baseDate != null) {
+                    baseCalendar.time = baseDate
+                }
             }
-        } catch (e: Exception) { Log.e("RailwayDB", "Error activity: ${e.message}") }
-        finally { conn?.close() }
-        return@withContext data
+
+            baseCalendar.set(Calendar.HOUR_OF_DAY, 0)
+            baseCalendar.set(Calendar.MINUTE, 0)
+            baseCalendar.set(Calendar.SECOND, 0)
+            baseCalendar.set(Calendar.MILLISECOND, 0)
+            baseCalendar.add(Calendar.DAY_OF_YEAR, -(safeDays - 1))
+
+            val dayNames = arrayOf("Dom", "Lun", "Mar", "Mie", "Jue", "Vie", "Sab")
+            repeat(safeDays) { index ->
+                val key = sdf.format(baseCalendar.time)
+                values[index] = countsMap[key] ?: 0
+
+                val dayIndex = (baseCalendar.get(Calendar.DAY_OF_WEEK) - 1).coerceIn(0, 6)
+                labels.add(dayNames[dayIndex])
+
+                baseCalendar.add(Calendar.DAY_OF_YEAR, 1)
+            }
+        } catch (e: Exception) {
+            Log.e("RailwayDB", "Error weekly activity: ${e.message}")
+        } finally {
+            conn?.close()
+        }
+
+        if (labels.isEmpty()) {
+            val fallback = arrayOf("Lun", "Mar", "Mie", "Jue", "Vie", "Sab", "Dom")
+            repeat(safeDays) { labels.add(fallback[it % fallback.size]) }
+        }
+
+        return@withContext ProformaActivitySeries(labels = labels, values = values)
     }
+
+    suspend fun getProformaActivityMonthly(months: Int = 6): ProformaActivitySeries = withContext(Dispatchers.IO) {
+        var conn: Connection? = null
+        val safeMonths = months.coerceIn(1, 24)
+        val labels = mutableListOf<String>()
+        val values = mutableListOf<Int>()
+
+        try {
+            conn = getConnection()
+            val query = """
+                SELECT DATE_FORMAT(DATE(COALESCE(FechaRegistro, FechaEmision)), '%Y-%m') AS mes,
+                       COUNT(*) AS cantidad
+                FROM PROFORMA
+                WHERE DATE(COALESCE(FechaRegistro, FechaEmision))
+                      >= DATE_SUB(DATE_FORMAT(CURDATE(), '%Y-%m-01'), INTERVAL ${safeMonths - 1} MONTH)
+                GROUP BY DATE_FORMAT(DATE(COALESCE(FechaRegistro, FechaEmision)), '%Y-%m')
+                ORDER BY mes ASC
+            """.trimIndent()
+            val rs = conn.prepareStatement(query).executeQuery()
+
+            val countByMonth = mutableMapOf<String, Int>()
+            while (rs.next()) {
+                countByMonth[rs.getString("mes")] = rs.getInt("cantidad")
+            }
+
+            val baseMonthQuery = "SELECT DATE_FORMAT(CURDATE(), '%Y-%m-01') AS mesBase"
+            val baseMonthRs = conn.prepareStatement(baseMonthQuery).executeQuery()
+
+            val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+            val baseCalendar = Calendar.getInstance()
+            if (baseMonthRs.next()) {
+                val baseDate = sdf.parse(baseMonthRs.getString("mesBase"))
+                if (baseDate != null) {
+                    baseCalendar.time = baseDate
+                }
+            }
+
+            baseCalendar.set(Calendar.DAY_OF_MONTH, 1)
+            baseCalendar.set(Calendar.HOUR_OF_DAY, 0)
+            baseCalendar.set(Calendar.MINUTE, 0)
+            baseCalendar.set(Calendar.SECOND, 0)
+            baseCalendar.set(Calendar.MILLISECOND, 0)
+
+            val monthNames = arrayOf("Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic")
+
+            for (i in (safeMonths - 1) downTo 0) {
+                val monthCalendar = Calendar.getInstance().apply {
+                    time = baseCalendar.time
+                    add(Calendar.MONTH, -i)
+                }
+
+                val year = monthCalendar.get(Calendar.YEAR)
+                val month = monthCalendar.get(Calendar.MONTH) + 1
+                val key = String.format(Locale.US, "%04d-%02d", year, month)
+
+                labels.add(monthNames[monthCalendar.get(Calendar.MONTH)])
+                values.add(countByMonth[key] ?: 0)
+            }
+        } catch (e: Exception) {
+            Log.e("RailwayDB", "Error monthly activity: ${e.message}")
+        } finally {
+            conn?.close()
+        }
+
+        if (labels.isEmpty()) {
+            val fallback = arrayOf("Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic")
+            val cal = Calendar.getInstance()
+            cal.set(Calendar.DAY_OF_MONTH, 1)
+            for (i in (safeMonths - 1) downTo 0) {
+                val monthCal = Calendar.getInstance().apply {
+                    time = cal.time
+                    add(Calendar.MONTH, -i)
+                }
+                labels.add(fallback[monthCal.get(Calendar.MONTH)])
+                values.add(0)
+            }
+        }
+
+        return@withContext ProformaActivitySeries(labels = labels, values = values)
+    }
+
+    suspend fun getProformaActivity(days: Int): List<Int> {
+        return getProformaActivityWeekly(days).values
+    }
+
     // --- REPORTES ANALÍTICOS ---
     suspend fun getReportKPIs(): Map<String, Any> = withContext(Dispatchers.IO) {
         var conn: Connection? = null

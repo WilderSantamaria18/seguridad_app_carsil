@@ -112,6 +112,7 @@ class MainActivity : FragmentActivity() {
             var userName by remember { mutableStateOf("") }
             var userRoleId by remember { mutableStateOf(1) }
             var userId by remember { mutableStateOf(1) }
+            val homeScreen = if (userRoleId == 2) "ATTENDANCE" else "DASHBOARD"
 
             var isBiometricEnrolled by remember { mutableStateOf(false) }
             
@@ -126,39 +127,45 @@ class MainActivity : FragmentActivity() {
                 }
             }
 
-            val lastActivityTime by lastActivityTimeState
+            val inactivityWarningThresholdMs = 4 * 60 * 1000L
+            val inactivitySessionTimeoutMs = 5 * 60 * 1000L
             var isSessionExpired by remember { mutableStateOf(false) }
             var showInactivityWarning by remember { mutableStateOf(false) }
+            var inactivitySecondsLeft by remember { mutableIntStateOf(0) }
             var showExitDialog by remember { mutableStateOf(false) }
             val isLoading by intranetViewModel.isLoading.collectAsState()
 
             // CARSIL-POL-SEC: Control de inactividad (4m Aviso, 5m Cierre)
-            LaunchedEffect(authState, lastActivityTime) {
+            LaunchedEffect(authState) {
                 if (authState is AuthState.Success) {
                     while (true) {
-                        delay(5000) // Verificación más frecuente (cada 5s)
-                        val elapsed = System.currentTimeMillis() - lastActivityTime
-                        
-                        // Umbral 1: Aviso (4 minutos = 240,000 ms)
-                        if (elapsed > 4 * 60 * 1000 && elapsed < 5 * 60 * 1000) {
-                            if (!showInactivityWarning && !isSessionExpired) {
+                        delay(1000)
+                        val elapsed = System.currentTimeMillis() - lastActivityTimeState.longValue
+                        val remainingMs = (inactivitySessionTimeoutMs - elapsed).coerceAtLeast(0L)
+                        inactivitySecondsLeft = kotlin.math.ceil(remainingMs / 1000.0).toInt()
+
+                        when {
+                            elapsed >= inactivitySessionTimeoutMs && !isSessionExpired -> {
+                                showInactivityWarning = false
+                                inactivitySecondsLeft = 0
+                                isSessionExpired = true
+                                authViewModel.logout()
+                            }
+                            elapsed >= inactivityWarningThresholdMs && !isSessionExpired -> {
                                 showInactivityWarning = true
                             }
-                        } 
-                        
-                        // Umbral 2: Cierre (5 minutos = 300,000 ms)
-                        if (elapsed >= 5 * 60 * 1000 && !isSessionExpired) {
-                            showInactivityWarning = false
-                            isSessionExpired = true
-                            authViewModel.logout()
+                            else -> {
+                                showInactivityWarning = false
+                            }
                         }
                     }
+                } else {
+                    showInactivityWarning = false
+                    inactivitySecondsLeft = 0
                 }
             }
 
             val dashboardStats by intranetViewModel.dashboardStats.collectAsState()
-            val proformaActivity by intranetViewModel.proformaActivity.collectAsState()
-            val activityLabels by intranetViewModel.activityLabels.collectAsState()
             val recentProformas by intranetViewModel.proformas.collectAsState()
 
             val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
@@ -188,7 +195,7 @@ class MainActivity : FragmentActivity() {
                                 intranetViewModel.loadAllowedMenus(userRoleId)
                                 intranetViewModel.loadDashboardData()
                                 
-                                currentScreen = if (userRoleId == 2) "ATTENDANCE" else "DASHBOARD"
+                                currentScreen = homeScreen
                                 lastActivityTimeState.longValue = System.currentTimeMillis()
                             } catch (e: Exception) {
                                 currentScreen = "LOGIN"
@@ -196,11 +203,37 @@ class MainActivity : FragmentActivity() {
                         }
                     }
                     is AuthState.Idle, is AuthState.Error, is AuthState.LockedOut -> {
-                        if (currentScreen != "PROFORMA" && currentScreen != "CLIENTS" && currentScreen != "PRODUCTS" && currentScreen != "PROFILE" && currentScreen != "CHANGE_PASSWORD" && currentScreen != "REPORTS" && currentScreen != "FACTURAS") {
+                        if (currentScreen != "PROFORMA" && currentScreen != "CLIENTS" && currentScreen != "PRODUCTS" && currentScreen != "PROFILE" && currentScreen != "CHANGE_PASSWORD" && currentScreen != "REPORTS" && currentScreen != "FACTURAS" && currentScreen != "USERS") {
                             currentScreen = "LOGIN"
                         }
                     }
                     else -> {}
+                }
+            }
+
+            // CARSIL-POL-SEC: El empleado nunca debe navegar al panel principal u otros módulos administrativos.
+            LaunchedEffect(authState, userRoleId, currentScreen) {
+                if (authState is AuthState.Success) {
+                    if (
+                        userRoleId == 2 &&
+                        currentScreen in setOf("DASHBOARD", "CLIENTS", "PRODUCTS", "PROFORMA", "FACTURAS", "REPORTS", "USERS")
+                    ) {
+                        currentScreen = "ATTENDANCE"
+                    }
+
+                    if (currentScreen == "USERS" && userRoleId != 1) {
+                        currentScreen = homeScreen
+                    }
+                }
+            }
+
+            // Refresco automatico para que los modulos del dashboard se actualicen casi en tiempo real.
+            LaunchedEffect(authState, currentScreen) {
+                if (authState is AuthState.Success && currentScreen == "DASHBOARD") {
+                    while (true) {
+                        intranetViewModel.refreshDashboardRealtime()
+                        delay(8000)
+                    }
                 }
             }
 
@@ -257,13 +290,19 @@ class MainActivity : FragmentActivity() {
 
                     // ADVERTENCIA DE INACTIVIDAD (CARSIL-POL-INACTIVITY)
                     if (showInactivityWarning) {
+                        val inactivityCountdownText = String.format(
+                            "%02d:%02d",
+                            inactivitySecondsLeft / 60,
+                            inactivitySecondsLeft % 60
+                        )
+
                         AlertDialog(
                             onDismissRequest = { /* No cerrar al tocar fuera por seguridad */ },
                             icon = { Icon(Icons.Default.Timer, contentDescription = null, tint = CarsilColors.Primary) },
                             title = { Text("Aviso de Inactividad", fontWeight = FontWeight.Bold) },
                             text = { 
                                 Text(
-                                    "Tu sesión está próxima a expirar por falta de actividad. ¿Deseas permanecer conectado?",
+                                    "Tu sesión se cerrará automáticamente en $inactivityCountdownText por inactividad. ¿Deseas permanecer conectado?",
                                     textAlign = androidx.compose.ui.text.style.TextAlign.Center
                                 ) 
                             },
@@ -272,6 +311,7 @@ class MainActivity : FragmentActivity() {
                                     onClick = {
                                         showInactivityWarning = false
                                         lastActivityTimeState.longValue = System.currentTimeMillis()
+                                        inactivitySecondsLeft = 0
                                     },
                                     colors = ButtonDefaults.buttonColors(containerColor = CarsilColors.Primary),
                                     shape = CarsilShapes.Medium
@@ -283,6 +323,7 @@ class MainActivity : FragmentActivity() {
                                 TextButton(
                                     onClick = {
                                         showInactivityWarning = false
+                                        inactivitySecondsLeft = 0
                                         authViewModel.logout()
                                         isSessionExpired = true
                                     }
@@ -368,8 +409,8 @@ class MainActivity : FragmentActivity() {
                         } else if (currentScreen == "DASHBOARD" || currentScreen == "ATTENDANCE" || currentScreen == "LOGIN" || currentScreen == "REPORTS") {
                             showExitDialog = true
                         } else {
-                            // En otras pantallas secundarias, volver al Dashboard (o dejar que la pantalla maneje su onBack)
-                            currentScreen = "DASHBOARD"
+                            // En pantallas secundarias volver a la pantalla home según el rol
+                            currentScreen = homeScreen
                         }
                     }
 
@@ -455,6 +496,18 @@ class MainActivity : FragmentActivity() {
                                             colors = NavigationDrawerItemDefaults.colors(selectedContainerColor = Color(0xFFEDE9FE), selectedTextColor = Color(0xFF6366F1), selectedIconColor = Color(0xFF6366F1))
                                         )
                                         Spacer(modifier = Modifier.height(8.dp))
+                                        if (userRoleId == 1) {
+                                            NavigationDrawerItem(
+                                                label = { Text("Usuarios Sistema", fontWeight = FontWeight.Medium) },
+                                                selected = currentScreen == "USERS",
+                                                onClick = {
+                                                    currentScreen = "USERS"
+                                                    scope.launch { drawerState.close() }
+                                                },
+                                                icon = { Icon(Icons.Default.ManageAccounts, null) }
+                                            )
+                                            Spacer(modifier = Modifier.height(8.dp))
+                                        }
                                         NavigationDrawerItem(
                                             label = { Text("Reportes Analíticos", fontWeight = FontWeight.Medium) },
                                             selected = currentScreen == "REPORTS",
@@ -516,8 +569,6 @@ class MainActivity : FragmentActivity() {
                                     roleId = userRoleId,
                                     allowedMenus = allowedMenus,
                                     stats = dashboardStats,
-                                    activity = proformaActivity,
-                                    activityLabels = activityLabels,
                                     recentProformas = recentProformas,
                                     isLoading = isLoading,
                                     onGoToClients = { currentScreen = "CLIENTS" },
@@ -532,7 +583,7 @@ class MainActivity : FragmentActivity() {
                                         intranetViewModel.clearSessionState()
                                         currentScreen = "LOGIN"
                                     },
-                                    onRefresh = { intranetViewModel.loadDashboardData() }
+                                    onRefresh = { intranetViewModel.refreshDashboardRealtime() }
                                 )
                                 "PROFILE" -> ProfileScreen(
                                     email = userEmail,
@@ -540,7 +591,6 @@ class MainActivity : FragmentActivity() {
                                     roleId = userRoleId,
                                     isBiometricEnrolled = isBiometricEnrolled,
                                     isBiometricAvailable = canUseBiometric,
-                                    userId = userId,
                                     onGoToChangePassword = { currentScreen = "CHANGE_PASSWORD" },
                                     onEnrollBiometric = {
                                         // LOGICA DE VALIDACION DE HUELLA EXISTENTE
@@ -569,10 +619,11 @@ class MainActivity : FragmentActivity() {
                                         isBiometricEnrolled = false
                                         Toast.makeText(this@MainActivity, "Huella desactivada", Toast.LENGTH_SHORT).show()
                                     },
-                                    onBack = { currentScreen = "DASHBOARD" }
+                                    onBack = { currentScreen = homeScreen }
                                 )
                                 "CHANGE_PASSWORD" -> ChangePasswordScreen(
                                     userId = userId,
+                                    roleId = userRoleId,
                                     onChangePassword = { current, new, onRes ->
                                         authViewModel.changePassword(userId, current, new, onRes)
                                     },
@@ -581,11 +632,11 @@ class MainActivity : FragmentActivity() {
                                         authViewModel.logout()
                                         intranetViewModel.clearSessionState()
                                         currentScreen = "LOGIN"
-                                        Toast.makeText(this@MainActivity, "Contraseña actualizada. Inicie sesión nuevamente.", Toast.LENGTH_LONG).show()
                                     }
                                 )
                                 "CLIENTS" -> ClientsScreen(viewModel = intranetViewModel, onBack = { currentScreen = "DASHBOARD" })
                                 "PRODUCTS" -> ProductsScreen(viewModel = intranetViewModel, onBack = { currentScreen = "DASHBOARD" })
+                                "USERS" -> UsersScreen(viewModel = intranetViewModel, onBack = { currentScreen = "DASHBOARD" })
                                 "PROFORMA" -> ProformaScreen(viewModel = intranetViewModel, idUsuario = userId, onBack = { currentScreen = "DASHBOARD" })
                                 "FACTURAS" -> FacturasScreen(viewModel = intranetViewModel, idUsuario = userId, onBack = { currentScreen = "DASHBOARD" })
                                 "REPORTS" -> ReportsScreen(viewModel = intranetViewModel, onBack = { currentScreen = "DASHBOARD" })

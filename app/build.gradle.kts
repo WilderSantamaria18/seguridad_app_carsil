@@ -57,6 +57,7 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended")
     implementation(libs.androidx.material3)
     implementation(libs.androidx.ui)
+    implementation(libs.androidx.compose.foundation)
     ksp(libs.room.compiler)
 
     // Firebase

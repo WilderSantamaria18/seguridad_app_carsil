@@ -50,7 +50,7 @@ fun ReportsScreen(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(Color.White)
+                    .background(CarsilColors.Surface)
                     .windowInsetsPadding(WindowInsets.statusBars)
                     .padding(top = 24.dp, bottom = 12.dp)
                     .padding(horizontal = 24.dp)
@@ -210,8 +210,13 @@ fun ReportsScreen(
                         if (topClients.isNotEmpty()) {
                             val totalMonto = topClients.sumOf { (it["monto"] as? Number)?.toDouble() ?: 0.0 }
                             val clientColors = listOf(
-                                CarsilColors.Primary, Color(0xFF10B981), Color(0xFFF59E0B), 
-                                Color(0xFF8B5CF6), Color(0xFFEF4444), Color(0xFF64748B), Color(0xFFEC4899)
+                                CarsilColors.Primary,
+                                CarsilColors.PrimaryDark,
+                                CarsilColors.Success,
+                                CarsilColors.Warning,
+                                CarsilColors.Danger,
+                                CarsilColors.TextMuted,
+                                Color(0xFF111111)
                             )
 
                             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -376,13 +381,13 @@ private fun EmptyReportState(message: String) {
 }
 
 private fun getStateColor(estado: String): Color = when (estado.uppercase().trim()) {
-    "PENDIENTE" -> Color(0xFFF59E0B)
-    "APROBADA" -> Color(0xFF3B82F6)
-    "VENDIDA" -> Color(0xFF10B981)
-    "VENCIDA" -> Color(0xFFEF4444)
-    "ANULADA" -> Color(0xFF6B7280)
-    "RECHAZADA" -> Color(0xFFFB923C)
-    else -> Color(0xFF9CA3AF)
+    "PENDIENTE" -> CarsilColors.Warning
+    "APROBADA" -> CarsilColors.Primary
+    "VENDIDA" -> CarsilColors.Success
+    "VENCIDA" -> CarsilColors.Danger
+    "ANULADA" -> CarsilColors.TextMuted
+    "RECHAZADA" -> CarsilColors.PrimaryDark
+    else -> CarsilColors.Gray400
 }
 
 private fun getMonthAbbr(month: Int): String = when (month) {

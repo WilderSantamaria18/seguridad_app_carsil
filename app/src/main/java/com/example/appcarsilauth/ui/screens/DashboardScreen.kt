@@ -40,8 +40,6 @@ fun DashboardScreen(
     roleId: Int = 1,
     allowedMenus: List<String> = emptyList(),
     stats: Map<String, Int> = emptyMap(),
-    activity: List<Int> = emptyList(),
-    activityLabels: List<String> = listOf("L", "M", "M", "J", "V", "S", "D"),
     recentProformas: List<Map<String, Any>> = emptyList(),
     onGoToClients: () -> Unit = {},
     onGoToProducts: () -> Unit = {},
@@ -267,31 +265,52 @@ fun DashboardScreen(
                             ) {
                                 Column {
                                     Text(
-                                        "Actividad de Proformas",
+                                        "Distribucion por Modulo",
                                         fontSize = 15.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = CarsilColors.TextPrimary
                                     )
                                     Text(
-                                        "Vista semanal",
+                                        "Registros totales en tiempo real",
                                         modifier = Modifier.padding(top = 8.dp),
                                         fontSize = 11.sp,
                                         color = CarsilColors.TextSecondary
                                     )
                                 }
-                                Icon(Icons.Default.Timeline, null, tint = CarsilColors.Primary)
+                                Icon(Icons.Default.Analytics, null, tint = CarsilColors.Primary)
                             }
                             
                             Spacer(modifier = Modifier.height(24.dp))
-                            
-                            com.example.appcarsilauth.ui.components.CarsilBarChart(
-                                data = if (activity.isEmpty()) {
-                                    List(7) { 0f }
-                                } else activity.map { it.toFloat() },
-                                labels = activityLabels,
-                                barColor = CarsilColors.Primary,
-                                unit = "Profs."
+
+                            val moduleLabels = listOf("Clientes", "Proformas", "Productos", "Empleados")
+                            val moduleTotalData = listOf(
+                                (stats["clientes"] ?: 0).toFloat(),
+                                (stats["proformas"] ?: 0).toFloat(),
+                                (stats["productos"] ?: 0).toFloat(),
+                                (stats["empleados"] ?: 0).toFloat()
                             )
+
+                            if (moduleTotalData.any { it > 0f }) {
+                                com.example.appcarsilauth.ui.components.CarsilBarChart(
+                                    data = moduleTotalData,
+                                    labels = moduleLabels,
+                                    barColor = CarsilColors.Primary,
+                                    unit = "Registros"
+                                )
+                            } else {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(180.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        "Sin datos de modulos aun",
+                                        color = CarsilColors.TextMuted,
+                                        fontSize = 12.sp
+                                    )
+                                }
+                            }
                         }
                     }
 

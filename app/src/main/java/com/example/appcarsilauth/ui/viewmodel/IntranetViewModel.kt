@@ -18,6 +18,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import org.mindrot.jbcrypt.BCrypt
 
 class IntranetViewModel(private val intranetDao: IntranetDao) : ViewModel() {
 
@@ -35,6 +36,12 @@ class IntranetViewModel(private val intranetDao: IntranetDao) : ViewModel() {
 
     private val _facturas = MutableStateFlow<List<Map<String, Any>>>(emptyList())
     val facturas: StateFlow<List<Map<String, Any>>> = _facturas.asStateFlow()
+
+    private val _usuarios = MutableStateFlow<List<Map<String, Any>>>(emptyList())
+    val usuarios: StateFlow<List<Map<String, Any>>> = _usuarios.asStateFlow()
+
+    private val _roles = MutableStateFlow<List<Map<String, Any>>>(emptyList())
+    val roles: StateFlow<List<Map<String, Any>>> = _roles.asStateFlow()
 
     private val _proformaGenerada = MutableStateFlow<Boolean>(false)
     val proformaGenerada: StateFlow<Boolean> = _proformaGenerada.asStateFlow()
@@ -73,6 +80,14 @@ class IntranetViewModel(private val intranetDao: IntranetDao) : ViewModel() {
     private val _salesByMonth = MutableStateFlow<List<Map<String, Any>>>(emptyList())
     val salesByMonth: StateFlow<List<Map<String, Any>>> = _salesByMonth.asStateFlow()
 
+    private var usersSearchCache: String = ""
+    private var usersStatusFilterCache: String = "TODOS"
+    private var weeklyActivityCache: List<Int> = List(7) { 0 }
+    private var weeklyLabelsCache: List<String> = listOf("Lun", "Mar", "Mie", "Jue", "Vie", "Sab", "Dom")
+    private var monthlyActivityCache: List<Int> = List(6) { 0 }
+    private var monthlyLabelsCache: List<String> = listOf("Ene", "Feb", "Mar", "Abr", "May", "Jun")
+    private val emailRegex = Regex("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$")
+
     fun loadAllowedMenus(roleId: Int) {
         viewModelScope.launch {
             _allowedMenus.value = intranetDao.getMenusByRole(roleId)
@@ -80,11 +95,17 @@ class IntranetViewModel(private val intranetDao: IntranetDao) : ViewModel() {
     }
 
     fun setActivityFilter(filter: String) {
-        if (filter != "WEEK") return
+        val normalized = filter.uppercase()
+        if (normalized != "WEEK" && normalized != "MONTH") return
+        if (_activityFilter.value == normalized) return
 
-        if (_activityFilter.value != "WEEK") {
-            _activityFilter.value = "WEEK"
-            loadDashboardData()
+        _activityFilter.value = normalized
+        if (normalized == "MONTH") {
+            _activityLabels.value = monthlyLabelsCache
+            _proformaActivity.value = monthlyActivityCache
+        } else {
+            _activityLabels.value = weeklyLabelsCache
+            _proformaActivity.value = weeklyActivityCache
         }
     }
 
@@ -127,30 +148,38 @@ class IntranetViewModel(private val intranetDao: IntranetDao) : ViewModel() {
     fun loadDashboardData() {
         viewModelScope.launch {
             _isLoading.value = true
-            _activityFilter.value = "WEEK"
-            val days = 7
+            val currentFilter = _activityFilter.value
             
             _dashboardStats.value = RailwayDatabase.getDashboardStats()
 
-            // Generar etiquetas dinámicas basadas en los últimos 7 días
-            // Igual que la web: i = 6..0 (desde hoy-6 hacia hoy)
-            val labels = mutableListOf<String>()
-            val dayNamesEs = arrayOf("Dom", "Lun", "Mar", "Mie", "Jue", "Vie", "Sab")
-            val calLabel = java.util.Calendar.getInstance()
-            calLabel.add(java.util.Calendar.DAY_OF_YEAR, -(days - 1)) // hoy - 6
-            for (i in 0 until days) {
-                // Calendar.DAY_OF_WEEK: 1=Dom, 2=Lun... 7=Sab
-                val dow = calLabel.get(java.util.Calendar.DAY_OF_WEEK) - 1 // 0=Dom..6=Sab
-                labels.add(dayNamesEs[dow])
-                calLabel.add(java.util.Calendar.DAY_OF_YEAR, 1)
-            }
-            _activityLabels.value = labels
+            val weeklySeries = RailwayDatabase.getProformaActivityWeekly(7)
+            weeklyLabelsCache = weeklySeries.labels
+            weeklyActivityCache = weeklySeries.values
 
-            // Cargar actividad DESPUÉS de que las etiquetas ya estén listas
-            _proformaActivity.value = RailwayDatabase.getProformaActivity(days)
+            val monthlySeries = RailwayDatabase.getProformaActivityMonthly(6)
+            monthlyLabelsCache = monthlySeries.labels
+            monthlyActivityCache = monthlySeries.values
+
+            _activityFilter.value = if (currentFilter == "MONTH") "MONTH" else "WEEK"
+            if (_activityFilter.value == "MONTH") {
+                _activityLabels.value = monthlyLabelsCache
+                _proformaActivity.value = monthlyActivityCache
+            } else {
+                _activityLabels.value = weeklyLabelsCache
+                _proformaActivity.value = weeklyActivityCache
+            }
 
             loadAllProformas()
             _isLoading.value = false
+        }
+    }
+
+    fun refreshDashboardRealtime() {
+        viewModelScope.launch {
+            runCatching {
+                _dashboardStats.value = RailwayDatabase.getDashboardStats()
+                _proformas.value = RailwayDatabase.getProformas()
+            }
         }
     }
 
@@ -165,6 +194,205 @@ class IntranetViewModel(private val intranetDao: IntranetDao) : ViewModel() {
             _isLoading.value = true
             _facturas.value = RailwayDatabase.getFacturas(search, estadoFiltro)
             _isLoading.value = false
+        }
+    }
+
+    fun loadRolesUsuarios() {
+        viewModelScope.launch {
+            _roles.value = RailwayDatabase.getRoles()
+        }
+    }
+
+    fun loadAllUsuarios(search: String = "", estadoFiltro: String = "TODOS") {
+        viewModelScope.launch {
+            _isLoading.value = true
+            usersSearchCache = search
+            usersStatusFilterCache = estadoFiltro
+            _usuarios.value = RailwayDatabase.getUsers(search, estadoFiltro)
+            _isLoading.value = false
+        }
+    }
+
+    fun registrarUsuario(
+        nombres: String,
+        apellidos: String,
+        tipoDocumento: String,
+        numeroDocumento: String,
+        correo: String,
+        telefono: String,
+        direccion: String,
+        idRol: Int,
+        estado: Int,
+        clave: String,
+        confirmarClave: String
+    ) {
+        viewModelScope.launch {
+            val nom = nombres.trim()
+            val ape = apellidos.trim()
+            val tipoDoc = tipoDocumento.trim().ifEmpty { "DNI" }
+            val numeroDoc = numeroDocumento.trim()
+            val email = correo.trim().lowercase()
+            val phone = telefono.trim()
+            val addr = direccion.trim()
+            val pass = clave.trim()
+            val passConfirm = confirmarClave.trim()
+
+            if (nom.isEmpty() || ape.isEmpty() || numeroDoc.isEmpty() || email.isEmpty()) {
+                _uiMessage.value = "Nombres, apellidos, documento y correo son obligatorios."
+                return@launch
+            }
+            if (!emailRegex.matches(email)) {
+                _uiMessage.value = "El correo electrónico no tiene un formato válido."
+                return@launch
+            }
+            if (pass.length < 6) {
+                _uiMessage.value = "La contraseña debe tener al menos 6 caracteres."
+                return@launch
+            }
+            if (pass != passConfirm) {
+                _uiMessage.value = "La confirmación de contraseña no coincide."
+                return@launch
+            }
+
+            _isLoading.value = true
+            try {
+                if (RailwayDatabase.isUserDocumentInUse(numeroDoc)) {
+                    _uiMessage.value = "El número de documento ya está registrado."
+                    return@launch
+                }
+                if (RailwayDatabase.isUserEmailInUse(email)) {
+                    _uiMessage.value = "El correo electrónico ya está registrado."
+                    return@launch
+                }
+
+                val userMap = mapOf(
+                    "Nombres" to nom,
+                    "Apellidos" to ape,
+                    "TipoDocumento" to tipoDoc,
+                    "NumeroDocumento" to numeroDoc,
+                    "Correo" to email,
+                    "Clave" to BCrypt.hashpw(pass, BCrypt.gensalt()),
+                    "IdRol" to idRol,
+                    "Estado" to estado,
+                    "Telefono" to phone,
+                    "Direccion" to addr
+                )
+
+                val remoteId = RailwayDatabase.insertUser(userMap)
+                _uiMessage.value = if (remoteId > 0) {
+                    loadAllUsuarios(usersSearchCache, usersStatusFilterCache)
+                    "Usuario registrado correctamente."
+                } else {
+                    "No se pudo registrar el usuario en la nube."
+                }
+            } catch (e: Exception) {
+                _uiMessage.value = "Error al registrar usuario: ${e.message}"
+            } finally {
+                _isLoading.value = false
+            }
+        }
+    }
+
+    fun actualizarUsuario(
+        idUsuario: Int,
+        nombres: String,
+        apellidos: String,
+        tipoDocumento: String,
+        numeroDocumento: String,
+        correo: String,
+        telefono: String,
+        direccion: String,
+        idRol: Int,
+        estado: Int,
+        nuevaClave: String,
+        confirmarClave: String
+    ) {
+        viewModelScope.launch {
+            val nom = nombres.trim()
+            val ape = apellidos.trim()
+            val tipoDoc = tipoDocumento.trim().ifEmpty { "DNI" }
+            val numeroDoc = numeroDocumento.trim()
+            val email = correo.trim().lowercase()
+            val phone = telefono.trim()
+            val addr = direccion.trim()
+            val pass = nuevaClave.trim()
+            val passConfirm = confirmarClave.trim()
+
+            if (nom.isEmpty() || ape.isEmpty() || numeroDoc.isEmpty() || email.isEmpty()) {
+                _uiMessage.value = "Nombres, apellidos, documento y correo son obligatorios."
+                return@launch
+            }
+            if (!emailRegex.matches(email)) {
+                _uiMessage.value = "El correo electrónico no tiene un formato válido."
+                return@launch
+            }
+
+            val wantsPasswordUpdate = pass.isNotEmpty() || passConfirm.isNotEmpty()
+            if (wantsPasswordUpdate && pass.length < 6) {
+                _uiMessage.value = "La nueva contraseña debe tener al menos 6 caracteres."
+                return@launch
+            }
+            if (wantsPasswordUpdate && pass != passConfirm) {
+                _uiMessage.value = "La confirmación de contraseña no coincide."
+                return@launch
+            }
+
+            _isLoading.value = true
+            try {
+                if (RailwayDatabase.isUserDocumentInUse(numeroDoc, idUsuario)) {
+                    _uiMessage.value = "El número de documento ya pertenece a otro usuario."
+                    return@launch
+                }
+                if (RailwayDatabase.isUserEmailInUse(email, idUsuario)) {
+                    _uiMessage.value = "El correo electrónico ya pertenece a otro usuario."
+                    return@launch
+                }
+
+                val hash = if (wantsPasswordUpdate) BCrypt.hashpw(pass, BCrypt.gensalt()) else null
+                val updated = RailwayDatabase.updateUser(
+                    idUsuario = idUsuario,
+                    nombres = nom,
+                    apellidos = ape,
+                    tipoDocumento = tipoDoc,
+                    numeroDocumento = numeroDoc,
+                    correo = email,
+                    telefono = phone,
+                    direccion = addr,
+                    idRol = idRol,
+                    estado = estado,
+                    newPasswordHash = hash
+                )
+
+                _uiMessage.value = if (updated) {
+                    loadAllUsuarios(usersSearchCache, usersStatusFilterCache)
+                    "Usuario actualizado correctamente."
+                } else {
+                    "No se pudo actualizar el usuario."
+                }
+            } catch (e: Exception) {
+                _uiMessage.value = "Error al actualizar usuario: ${e.message}"
+            } finally {
+                _isLoading.value = false
+            }
+        }
+    }
+
+    fun actualizarEstadoUsuario(idUsuario: Int, nuevoEstado: Int) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            try {
+                val updated = RailwayDatabase.updateUserStatus(idUsuario, nuevoEstado)
+                _uiMessage.value = if (updated) {
+                    loadAllUsuarios(usersSearchCache, usersStatusFilterCache)
+                    if (nuevoEstado == 1) "Usuario activado correctamente." else "Usuario inactivado correctamente."
+                } else {
+                    "No se pudo actualizar el estado del usuario."
+                }
+            } catch (e: Exception) {
+                _uiMessage.value = "Error al cambiar estado: ${e.message}"
+            } finally {
+                _isLoading.value = false
+            }
         }
     }
 
@@ -264,6 +492,7 @@ class IntranetViewModel(private val intranetDao: IntranetDao) : ViewModel() {
 
             _uiMessage.value = if (remoteId > 0) "Cliente registrado en la nube correctamente." else "Cliente registrado localmente (Falla en nube)."
             loadIntranetData()
+            refreshDashboardRealtime()
         }
     }
 
@@ -325,6 +554,7 @@ class IntranetViewModel(private val intranetDao: IntranetDao) : ViewModel() {
 
             _uiMessage.value = if (remoteId > 0) "Producto sincronizado en Railway." else "Producto guardado local (Offline)."
             loadIntranetData()
+            refreshDashboardRealtime()
             _isLoading.value = false
         }
     }
@@ -407,6 +637,7 @@ class IntranetViewModel(private val intranetDao: IntranetDao) : ViewModel() {
                     "Proforma generada en modo local."
                 }
                 loadIntranetData() 
+                refreshDashboardRealtime()
             } else {
                 _uiMessage.value = "Stock insuficiente disponible."
             }
@@ -540,7 +771,19 @@ class IntranetViewModel(private val intranetDao: IntranetDao) : ViewModel() {
         _allowedMenus.value = emptyList()
         _proformaGenerada.value = false
         _lastProforma.value = null
+        _dashboardStats.value = emptyMap()
+        _proformaActivity.value = emptyList()
+        _activityLabels.value = listOf("L", "M", "M", "J", "V", "S", "D")
+        _activityFilter.value = "WEEK"
+        weeklyActivityCache = List(7) { 0 }
+        weeklyLabelsCache = listOf("Lun", "Mar", "Mie", "Jue", "Vie", "Sab", "Dom")
+        monthlyActivityCache = List(6) { 0 }
+        monthlyLabelsCache = listOf("Ene", "Feb", "Mar", "Abr", "May", "Jun")
         _asistenciaState.value = null
         _allAttendances.value = emptyList()
+        _usuarios.value = emptyList()
+        _roles.value = emptyList()
+        usersSearchCache = ""
+        usersStatusFilterCache = "TODOS"
     }
 }

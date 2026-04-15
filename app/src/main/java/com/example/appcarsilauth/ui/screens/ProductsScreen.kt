@@ -24,6 +24,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.appcarsilauth.data.local.entity.ProductoEntity
+import com.example.appcarsilauth.ui.components.CarsilColors
 import com.example.appcarsilauth.ui.viewmodel.IntranetViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -59,19 +60,25 @@ fun ProductsScreen(
     }
 
     Scaffold(
-        containerColor = Color(0xFFF8F9FA),
+        containerColor = CarsilColors.Background,
         topBar = {
             TopAppBar(
-                title = { Text("Inventario de Productos", fontWeight = FontWeight.Black) },
+                title = {
+                    Text(
+                        "Inventario de Productos",
+                        fontWeight = FontWeight.Black,
+                        color = CarsilColors.TextPrimary
+                    )
+                },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = Color.Black)
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = CarsilColors.TextPrimary)
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White),
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = CarsilColors.Surface),
                 actions = {
                     IconButton(onClick = { showAddForm = !showAddForm }) {
-                        Icon(if (showAddForm) Icons.Default.Close else Icons.Default.AddBox, null, tint = Color.Black)
+                        Icon(if (showAddForm) Icons.Default.Close else Icons.Default.AddBox, null, tint = CarsilColors.Primary)
                     }
                 }
             )
@@ -81,15 +88,15 @@ fun ProductsScreen(
             if (isLoading) {
                 LinearProgressIndicator(
                     modifier = Modifier.fillMaxWidth().height(3.dp),
-                    color = com.example.appcarsilauth.ui.components.CarsilColors.Primary,
-                    trackColor = com.example.appcarsilauth.ui.components.CarsilColors.PrimaryLight
+                    color = CarsilColors.Primary,
+                    trackColor = CarsilColors.PrimaryLight
                 )
             }
             if (showAddForm) {
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
-                    color = Color.White,
-                    shadowElevation = 8.dp
+                    color = CarsilColors.Surface,
+                    shadowElevation = 2.dp
                 ) {
                     Column(
                         modifier = Modifier.padding(20.dp).verticalScroll(rememberScrollState()),
@@ -164,7 +171,10 @@ fun ProductsScreen(
                             },
                             modifier = Modifier.fillMaxWidth().height(50.dp),
                             shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color.Black)
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = CarsilColors.Primary,
+                                contentColor = CarsilColors.TextPrimary
+                            )
                         ) {
                             Text("Confirmar Ingreso", fontWeight = FontWeight.Bold)
                         }
@@ -182,17 +192,20 @@ fun ProductsScreen(
                 placeholder = {
                     Text(
                         "Buscar por Nombre o Código SKU...",
-                        color = Color.Black,
+                        color = CarsilColors.TextMuted,
                         fontWeight = FontWeight.Bold
                     )
                 },
-                leadingIcon = { Icon(Icons.Default.Search, null) },
+                leadingIcon = { Icon(Icons.Default.Search, null, tint = CarsilColors.Primary) },
                 shape = RoundedCornerShape(20.dp),
                 singleLine = true,
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedContainerColor = Color.White,
-                    unfocusedContainerColor = Color.White,
-                    focusedBorderColor = Color.Black
+                    focusedTextColor = CarsilColors.TextPrimary,
+                    unfocusedTextColor = CarsilColors.TextPrimary,
+                    focusedContainerColor = CarsilColors.Surface,
+                    unfocusedContainerColor = CarsilColors.Surface,
+                    focusedBorderColor = CarsilColors.Primary,
+                    unfocusedBorderColor = CarsilColors.Stroke
                 )
             )
 
@@ -206,7 +219,7 @@ fun ProductsScreen(
                         "Catálogo de Almacén (${productos.size})",
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color.Black,
+                        color = CarsilColors.TextMuted,
                         modifier = Modifier.padding(bottom = 8.dp)
                     )
                 }
@@ -233,8 +246,8 @@ private fun ProductoCard(producto: ProductoEntity, onClick: () -> Unit) {
     Surface(
         modifier = Modifier.fillMaxWidth().clickable { onClick() },
         shape = RoundedCornerShape(16.dp),
-        color = Color.White,
-        border = BorderStroke(1.dp, Color(0xFFF1F3F4)),
+        color = CarsilColors.Surface,
+        border = BorderStroke(1.dp, CarsilColors.Stroke),
         shadowElevation = 1.dp
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -273,7 +286,7 @@ private fun ProductoCard(producto: ProductoEntity, onClick: () -> Unit) {
                     Text(
                         text = "SKU: ${producto.Codigo}", 
                         fontSize = 11.sp, 
-                        color = Color.Black,
+                        color = CarsilColors.TextMuted,
                         maxLines = 1,
                         overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                     )
@@ -302,14 +315,14 @@ private fun ProductoCard(producto: ProductoEntity, onClick: () -> Unit) {
                     Icon(
                         Icons.Default.Label, 
                         null, 
-                        tint = Color.LightGray, 
+                        tint = CarsilColors.TextMuted, 
                         modifier = Modifier.size(14.dp)
                     )
                     Spacer(Modifier.width(6.dp))
                     Text(
                         text = producto.Marca ?: "CARSIL GNR", 
                         fontSize = 12.sp, 
-                        color = Color.Black,
+                        color = CarsilColors.TextPrimary,
                         maxLines = 1,
                         overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                         modifier = Modifier.widthIn(max = 120.dp)
@@ -352,7 +365,7 @@ private fun ProductDetailModal(producto: ProductoEntity, onDismiss: () -> Unit) 
         Surface(
             modifier = Modifier.fillMaxWidth().padding(16.dp),
             shape = RoundedCornerShape(28.dp),
-            color = Color.White
+            color = CarsilColors.Surface
         ) {
             Column(
                 modifier = Modifier
@@ -363,10 +376,10 @@ private fun ProductDetailModal(producto: ProductoEntity, onDismiss: () -> Unit) 
                 Box(
                     modifier = Modifier
                         .size(64.dp)
-                        .background(Color(0xFFF1F3F4), CircleShape),
+                        .background(CarsilColors.PrimaryLight, CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(Icons.Default.Inventory2, null, modifier = Modifier.size(32.dp))
+                    Icon(Icons.Default.Inventory2, null, modifier = Modifier.size(32.dp), tint = CarsilColors.Primary)
                 }
                 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -379,7 +392,7 @@ private fun ProductDetailModal(producto: ProductoEntity, onDismiss: () -> Unit) 
                 )
                 Text(
                     text = "Código SKU: ${producto.Codigo}",
-                    color = Color.Black,
+                    color = CarsilColors.TextPrimary,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Bold
                 )
@@ -408,7 +421,10 @@ private fun ProductDetailModal(producto: ProductoEntity, onDismiss: () -> Unit) 
                     onClick = onDismiss,
                     modifier = Modifier.fillMaxWidth().height(52.dp),
                     shape = RoundedCornerShape(14.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color.Black)
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = CarsilColors.Primary,
+                        contentColor = CarsilColors.TextPrimary
+                    )
                 ) {
                     Text("Cerrar Detalle", fontWeight = FontWeight.Bold)
                 }
@@ -423,11 +439,11 @@ private fun DetailItem(icon: ImageVector, label: String, value: String) {
         modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
         verticalAlignment = Alignment.Top
     ) {
-        Icon(icon, null, tint = Color.Gray, modifier = Modifier.size(18.dp))
+        Icon(icon, null, tint = CarsilColors.TextMuted, modifier = Modifier.size(18.dp))
         Spacer(modifier = Modifier.width(16.dp))
         Column {
-            Text(label, fontSize = 10.sp, color = Color.Gray, fontWeight = FontWeight.Bold)
-            Text(value, fontSize = 14.sp, color = Color.Black)
+            Text(label, fontSize = 10.sp, color = CarsilColors.TextPrimary, fontWeight = FontWeight.Bold)
+            Text(value, fontSize = 14.sp, color = CarsilColors.TextPrimary)
         }
     }
 }
@@ -436,10 +452,10 @@ private fun DetailItem(icon: ImageVector, label: String, value: String) {
 private fun DetailItemCompact(icon: ImageVector, label: String, value: String) {
     Column(horizontalAlignment = Alignment.Start) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(icon, null, tint = Color.Gray, modifier = Modifier.size(14.dp))
+            Icon(icon, null, tint = CarsilColors.TextMuted, modifier = Modifier.size(14.dp))
             Spacer(modifier = Modifier.width(6.dp))
-            Text(label, fontSize = 10.sp, color = Color.Gray, fontWeight = FontWeight.Bold)
+            Text(label, fontSize = 10.sp, color = CarsilColors.TextPrimary, fontWeight = FontWeight.Bold)
         }
-        Text(value, fontSize = 16.sp, color = Color.Black, fontWeight = FontWeight.Black)
+        Text(value, fontSize = 16.sp, color = CarsilColors.TextPrimary, fontWeight = FontWeight.Black)
     }
 }

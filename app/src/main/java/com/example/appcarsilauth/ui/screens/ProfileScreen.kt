@@ -29,7 +29,6 @@ fun ProfileScreen(
     roleId: Int,
     isBiometricEnrolled: Boolean,
     isBiometricAvailable: Boolean,
-    userId: Int,
     onGoToChangePassword: () -> Unit,
     onEnrollBiometric: () -> Unit,
     onRemoveBiometric: () -> Unit,
@@ -213,14 +212,12 @@ fun ProfileScreen(
                 }
             }
 
-            // ── Datos personales (todos los roles) ─────────────────────
+            // ── Datos de la Cuenta (todos los roles) ───────────────────
             ProfileSectionTitle("Datos de la Cuenta")
             Spacer(modifier = Modifier.height(10.dp))
 
-            ProfileInfoRow(Icons.Default.Person, "Nombre", userName)
             ProfileInfoRow(Icons.Default.Email, "Correo", email)
             ProfileInfoRow(Icons.Default.Badge, "Rol", roleName)
-            ProfileInfoRow(Icons.Default.Tag, "ID Usuario", "#$userId")
 
             Spacer(modifier = Modifier.height(24.dp))
 
@@ -363,70 +360,44 @@ fun ProfileScreen(
                 ProfileInfoRow(Icons.Default.Lock, "Sesión", "Protegida")
                 ProfileInfoRow(Icons.Default.EnhancedEncryption, "Cifrado", "AES-256")
 
+
                 Spacer(modifier = Modifier.height(24.dp))
 
-                // Botón cambiar contraseña
-                Button(
-                    onClick = onGoToChangePassword,
-                    modifier = Modifier.fillMaxWidth().height(56.dp),
-                    shape = CarsilShapes.Small,
-                    elevation = ButtonDefaults.buttonElevation(0.dp, 0.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = CarsilColors.Primary)
-                ) {
-                    Icon(Icons.Default.Password, null, tint = Color.Black)
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Text("CAMBIAR CONTRASEÑA", fontWeight = FontWeight.Bold, color = Color.Black)
-                }
-
             } else {
-                // EMPLEADO: solo lectura — datos de seguridad sin acciones
+                // EMPLEADO: filas de seguridad en lectura
                 ProfileInfoRow(Icons.Default.Shield, "Autenticación", "Activa")
                 ProfileInfoRow(Icons.Default.Lock, "Sesión", "Protegida")
                 ProfileInfoRow(Icons.Default.EnhancedEncryption, "Cifrado", "AES-256")
 
-                Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(24.dp))
+            }
 
-                // Fila "Cambio de contraseña" deshabilitada con mensaje
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = CarsilShapes.Small,
-                    color = Color(0xFFF3F4F6),
-                    border = BorderStroke(1.dp, Color(0xFFE5E7EB))
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 14.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            Icons.Default.LockPerson,
-                            null,
-                            tint = Color(0xFF9CA3AF),
-                            modifier = Modifier.size(22.dp)
-                        )
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                "Cambio de contraseña",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp,
-                                color = Color(0xFF6B7280)
-                            )
-                            Text(
-                                "Solo el Administrador puede modificarlo",
-                                fontSize = 11.sp,
-                                color = Color(0xFF9CA3AF)
-                            )
-                        }
-                        Icon(
-                            Icons.Default.Block,
-                            null,
-                            tint = Color(0xFFD1D5DB),
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-                }
+            // ── Botón Cambiar Contraseña (todos los roles, deshabilitado para empleado) ──
+            Button(
+                onClick = if (!isEmployeeReadOnly) onGoToChangePassword else { {} },
+                enabled = !isEmployeeReadOnly,
+                modifier = Modifier.fillMaxWidth().height(56.dp),
+                shape = CarsilShapes.Small,
+                elevation = ButtonDefaults.buttonElevation(0.dp, 0.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = CarsilColors.Primary,
+                    contentColor = Color.Black,
+                    disabledContainerColor = Color(0xFFE5E7EB),
+                    disabledContentColor = Color(0xFF9CA3AF)
+                )
+            ) {
+                Icon(
+                    if (isEmployeeReadOnly) Icons.Default.LockPerson else Icons.Default.Password,
+                    null
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Text(
+                    if (isEmployeeReadOnly)
+                        "CAMBIAR CONTRASEÑA  •  Solo el Administrador"
+                    else
+                        "CAMBIAR CONTRASEÑA",
+                    fontWeight = FontWeight.Bold
+                )
             }
 
             Spacer(modifier = Modifier.height(32.dp))
@@ -457,28 +428,36 @@ private fun ProfileInfoRow(icon: ImageVector, label: String, value: String) {
         border = BorderStroke(1.dp, CarsilColors.Stroke)
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(icon, null, tint = CarsilColors.Primary, modifier = Modifier.size(20.dp))
+            Icon(
+                icon,
+                null,
+                tint = CarsilColors.Primary,
+                modifier = Modifier.size(20.dp)
+            )
             Spacer(modifier = Modifier.width(12.dp))
-            Text(
-                label,
-                fontWeight = FontWeight.Medium,
-                fontSize = 14.sp,
-                color = CarsilColors.TextPrimary,
-                modifier = Modifier.width(110.dp)
-            )
-            Spacer(modifier = Modifier.weight(1f))
-            Text(
-                value,
-                fontSize = 12.sp,
-                color = CarsilColors.TextSecondary,
-                maxLines = 1,
-                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                textAlign = TextAlign.End,
-                modifier = Modifier.weight(1f)
-            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    label,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 11.sp,
+                    color = CarsilColors.TextSecondary,
+                    letterSpacing = 0.5.sp
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    value,
+                    fontSize = 14.sp,
+                    color = CarsilColors.TextPrimary,
+                    fontWeight = FontWeight.Medium,
+                    softWrap = true,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Visible
+                )
+            }
         }
     }
 }

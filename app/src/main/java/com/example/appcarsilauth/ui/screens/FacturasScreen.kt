@@ -43,30 +43,31 @@ fun FacturasScreen(
     }
 
     Scaffold(
-        containerColor = Color(0xFFF8F9FA),
+        containerColor = CarsilColors.Background,
         topBar = {
-            Column(Modifier.background(Color.White)) {
+            Column(Modifier.background(CarsilColors.Surface)) {
                 TopAppBar(
                     title = {
                         Column {
                             Text(
                                 "Historial de Facturas",
                                 fontWeight = FontWeight.Black,
-                                fontSize = 18.sp
+                                fontSize = 18.sp,
+                                color = CarsilColors.TextPrimary
                             )
                             Text(
                                 "Comprobantes con código QR",
                                 fontSize = 11.sp,
-                                color = Color.Black
+                                color = CarsilColors.TextMuted
                             )
                         }
                     },
                     navigationIcon = {
                         IconButton(onClick = onBack) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = Color.Black)
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = CarsilColors.TextPrimary)
                         }
                     },
-                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = CarsilColors.Surface)
                 )
             }
         }
@@ -76,8 +77,8 @@ fun FacturasScreen(
             if (isLoading) {
                 LinearProgressIndicator(
                     modifier = Modifier.fillMaxWidth().height(3.dp),
-                    color = Color(0xFF6366F1),
-                    trackColor = Color(0xFFE0E7FF)
+                    color = CarsilColors.Primary,
+                    trackColor = CarsilColors.PrimaryLight
                 )
             }
 
@@ -92,25 +93,28 @@ fun FacturasScreen(
                     Text(
                         "Buscar por código o cliente...",
                         fontSize = 14.sp,
-                        color = Color.Gray,
+                        color = CarsilColors.TextMuted,
                         fontWeight = FontWeight.Normal
                     )
                 },
-                leadingIcon = { Icon(Icons.Default.Search, null, tint = Color(0xFF6366F1)) },
+                leadingIcon = { Icon(Icons.Default.Search, null, tint = CarsilColors.Primary) },
                 trailingIcon = {
                     if (searchQuery.isNotEmpty()) {
                         IconButton(onClick = { searchQuery = "" }) {
-                            Icon(Icons.Default.Close, null, tint = Color.Gray)
+                            Icon(Icons.Default.Close, null, tint = CarsilColors.TextMuted)
                         }
                     }
                 },
                 shape = RoundedCornerShape(20.dp),
                 singleLine = true,
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Color(0xFF6366F1),
-                    unfocusedBorderColor = Color(0xFFEEEEEE),
-                    unfocusedContainerColor = Color.White,
-                    focusedContainerColor = Color.White
+                    focusedTextColor = CarsilColors.TextPrimary,
+                    unfocusedTextColor = CarsilColors.TextPrimary,
+                    focusedLabelColor = CarsilColors.TextPrimary,
+                    focusedBorderColor = CarsilColors.Primary,
+                    unfocusedBorderColor = CarsilColors.Stroke,
+                    unfocusedContainerColor = CarsilColors.Surface,
+                    focusedContainerColor = CarsilColors.Surface
                 )
             )
 
@@ -135,16 +139,16 @@ fun FacturasScreen(
                             )
                         },
                         colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = Color(0xFF6366F1),
-                            selectedLabelColor = Color.White,
-                            containerColor = Color.White,
-                            labelColor = Color.Black
+                            selectedContainerColor = CarsilColors.PrimaryLight,
+                            selectedLabelColor = CarsilColors.TextPrimary,
+                            containerColor = CarsilColors.Surface,
+                            labelColor = CarsilColors.TextPrimary
                         ),
                         border = FilterChipDefaults.filterChipBorder(
                             enabled = true,
                             selected = isSelected,
-                            borderColor = if (isSelected) Color(0xFF6366F1) else Color(0xFFE0E0E0),
-                            selectedBorderColor = Color(0xFF6366F1)
+                            borderColor = if (isSelected) CarsilColors.Primary else CarsilColors.Stroke,
+                            selectedBorderColor = CarsilColors.Primary
                         )
                     )
                 }
@@ -162,13 +166,13 @@ fun FacturasScreen(
                         Spacer(Modifier.height(16.dp))
                         Text(
                             "No se encontraron facturas",
-                            color = Color.Gray,
+                            color = CarsilColors.TextPrimary,
                             fontWeight = FontWeight.Medium,
                             fontSize = 16.sp
                         )
                         Text(
                             "Prueba cambiando el filtro o la búsqueda",
-                            color = Color.LightGray,
+                            color = CarsilColors.TextMuted,
                             fontSize = 12.sp,
                             modifier = Modifier.padding(top = 4.dp)
                         )
@@ -185,7 +189,7 @@ fun FacturasScreen(
                             "Resultados: ${facturas.size} facturas encontradas",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color.Gray,
+                            color = CarsilColors.TextMuted,
                             modifier = Modifier.padding(bottom = 4.dp)
                         )
                     }
@@ -216,7 +220,7 @@ fun FacturaItem(
         "PAGADA" -> Pair(Color(0xFF16A34A), Color(0xFFDCFCE7))
         "PENDIENTE" -> Pair(Color(0xFFD97706), Color(0xFFFEF3C7))
         "ANULADA" -> Pair(Color(0xFFDC2626), Color(0xFFFEE2E2))
-        else -> Pair(Color.Gray, Color(0xFFF3F4F6))
+        else -> Pair(CarsilColors.TextMuted, Color(0xFFF3F4F6))
     }
 
     val statusIcon = when (estado) {
@@ -229,9 +233,9 @@ fun FacturaItem(
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
-        color = Color.White,
-        border = BorderStroke(1.dp, Color(0xFFF0F0F0)),
-        shadowElevation = 3.dp
+        color = CarsilColors.Surface,
+        border = BorderStroke(1.dp, CarsilColors.Stroke),
+        shadowElevation = 1.dp
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
 
@@ -243,7 +247,7 @@ fun FacturaItem(
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Surface(
-                        color = Color(0xFFEDE9FE),
+                        color = CarsilColors.PrimaryLight,
                         shape = RoundedCornerShape(8.dp),
                         modifier = Modifier.size(38.dp)
                     ) {
@@ -251,7 +255,7 @@ fun FacturaItem(
                             Icon(
                                 Icons.Default.Receipt,
                                 contentDescription = null,
-                                tint = Color(0xFF6366F1),
+                                tint = CarsilColors.Primary,
                                 modifier = Modifier.size(20.dp)
                             )
                         }
@@ -269,14 +273,14 @@ fun FacturaItem(
                             Icon(
                                 Icons.Default.QrCode2,
                                 null,
-                                tint = Color(0xFF6366F1),
+                                tint = CarsilColors.Primary,
                                 modifier = Modifier.size(12.dp)
                             )
                             Spacer(Modifier.width(3.dp))
                             Text(
                                 "Incluye QR",
                                 fontSize = 9.sp,
-                                color = Color(0xFF6366F1),
+                                color = CarsilColors.Primary,
                                 fontWeight = FontWeight.Bold
                             )
                         }
@@ -315,7 +319,7 @@ fun FacturaItem(
                 Icon(
                     Icons.Default.Business,
                     null,
-                    tint = Color.Gray,
+                    tint = CarsilColors.TextMuted,
                     modifier = Modifier.size(14.dp)
                 )
                 Spacer(Modifier.width(6.dp))
@@ -336,21 +340,21 @@ fun FacturaItem(
                     Icon(
                         Icons.Default.CreditCard,
                         null,
-                        tint = Color.LightGray,
+                        tint = CarsilColors.TextMuted,
                         modifier = Modifier.size(13.dp)
                     )
                     Spacer(Modifier.width(6.dp))
                     Text(
                         formaPago,
                         fontSize = 11.sp,
-                        color = Color.Gray,
+                        color = CarsilColors.TextMuted,
                         maxLines = 1
                     )
                 }
             }
 
             Spacer(Modifier.height(12.dp))
-            HorizontalDivider(color = Color(0xFFF5F5F5))
+            HorizontalDivider(color = CarsilColors.Stroke)
             Spacer(Modifier.height(12.dp))
 
             // Pie: Fecha + Vencimiento + Total + Botón PDF
@@ -364,7 +368,7 @@ fun FacturaItem(
                         "EMISIÓN",
                         fontSize = 8.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color.LightGray,
+                        color = CarsilColors.TextMuted,
                         letterSpacing = 0.5.sp
                     )
                     Text(
@@ -378,7 +382,7 @@ fun FacturaItem(
                         Text(
                             "Vence: $venc",
                             fontSize = 10.sp,
-                            color = if (estado == "PENDIENTE") Color(0xFFD97706) else Color.Gray
+                            color = if (estado == "PENDIENTE") CarsilColors.Warning else CarsilColors.TextMuted
                         )
                     }
                 }
@@ -393,14 +397,14 @@ fun FacturaItem(
                             "TOTAL",
                             fontSize = 8.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color.LightGray,
+                            color = CarsilColors.TextMuted,
                             letterSpacing = 0.5.sp
                         )
                         Text(
                             "S/ ${"%.2f".format(total)}",
                             fontWeight = FontWeight.Black,
                             fontSize = 17.sp,
-                            color = Color(0xFF6366F1)
+                            color = CarsilColors.Primary
                         )
                     }
 
@@ -409,12 +413,12 @@ fun FacturaItem(
                         onClick = { onDownloadPdf(idFact) },
                         modifier = Modifier
                             .size(44.dp)
-                            .background(Color(0xFF6366F1).copy(alpha = 0.1f), RoundedCornerShape(14.dp))
+                            .background(CarsilColors.PrimaryLight, RoundedCornerShape(14.dp))
                     ) {
                         Icon(
                             Icons.Default.PictureAsPdf,
                             contentDescription = "Descargar Factura PDF",
-                            tint = Color(0xFF6366F1),
+                            tint = CarsilColors.Primary,
                             modifier = Modifier.size(22.dp)
                         )
                     }

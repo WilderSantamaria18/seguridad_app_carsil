@@ -40,22 +40,31 @@ fun ProformaScreen(
     }
 
     Scaffold(
-        containerColor = Color(0xFFF8F9FA),
+        containerColor = CarsilColors.Background,
         topBar = {
-            Column(Modifier.background(Color.White)) {
+            Column(Modifier.background(CarsilColors.Surface)) {
                 TopAppBar(
                     title = { 
                         Column {
-                            Text("Historial de Proformas", fontWeight = FontWeight.Black, fontSize = 18.sp)
-                            Text("Consulta y descarga de documentos", fontSize = 11.sp, color = Color.Black)
+                            Text(
+                                "Historial de Proformas",
+                                fontWeight = FontWeight.Black,
+                                fontSize = 18.sp,
+                                color = CarsilColors.TextPrimary
+                            )
+                            Text(
+                                "Consulta y descarga de documentos",
+                                fontSize = 11.sp,
+                                color = CarsilColors.TextMuted
+                            )
                         }
                     },
                     navigationIcon = {
                         IconButton(onClick = onBack) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = Color.Black)
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = CarsilColors.TextPrimary)
                         }
                     },
-                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = CarsilColors.Surface)
                 )
             }
         }
@@ -78,7 +87,7 @@ fun ProformaScreen(
                     Text(
                         "Buscar por código o cliente...",
                         fontSize = 14.sp,
-                        color = Color.Black,
+                        color = CarsilColors.TextMuted,
                         fontWeight = FontWeight.Bold
                     )
                 },
@@ -86,19 +95,21 @@ fun ProformaScreen(
                 shape = RoundedCornerShape(20.dp),
                 singleLine = true,
                 colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = CarsilColors.TextPrimary,
+                    unfocusedTextColor = CarsilColors.TextPrimary,
                     focusedBorderColor = CarsilColors.Primary,
-                    unfocusedBorderColor = Color(0xFFEEEEEE),
-                    unfocusedContainerColor = Color.White,
-                    focusedContainerColor = Color.White
+                    unfocusedBorderColor = CarsilColors.Stroke,
+                    unfocusedContainerColor = CarsilColors.Surface,
+                    focusedContainerColor = CarsilColors.Surface
                 )
             )
 
             if (proformas.isEmpty() && !isLoading) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(Icons.Default.History, null, modifier = Modifier.size(64.dp), tint = Color.LightGray)
+                        Icon(Icons.Default.History, null, modifier = Modifier.size(64.dp), tint = CarsilColors.Stroke)
                         Spacer(Modifier.height(16.dp))
-                        Text("No se encontraron proformas", color = Color.Black, fontWeight = FontWeight.Medium)
+                        Text("No se encontraron proformas", color = CarsilColors.TextPrimary, fontWeight = FontWeight.Medium)
                     }
                 }
             } else {
@@ -112,7 +123,7 @@ fun ProformaScreen(
                             "Resultados: ${proformas.size} documentos", 
                             fontSize = 12.sp, 
                             fontWeight = FontWeight.Bold,
-                            color = Color.Black,
+                            color = CarsilColors.TextMuted,
                             modifier = Modifier.padding(bottom = 8.dp)
                         ) 
                     }
@@ -137,19 +148,19 @@ fun ProformaItem(
     val idProf = proforma["IdProforma"] as? Int ?: 0
     val estado = (proforma["Estado"] as? String ?: "PENDIENTE").uppercase()
     
-    val statusColor = when(estado) {
-        "VENDIDA", "APROBADA" -> Color(0xFF4CAF50)
-        "PENDIENTE" -> Color(0xFFFFC107)
-        "ANULADA", "RECHAZADA" -> Color(0xFFF44336)
-        else -> Color.Gray
+    val (statusColor, statusBg) = when(estado) {
+        "VENDIDA", "APROBADA" -> Pair(Color(0xFF166534), Color(0xFFDCFCE7))
+        "PENDIENTE" -> Pair(Color(0xFF92400E), Color(0xFFFEF3C7))
+        "ANULADA", "RECHAZADA" -> Pair(Color(0xFF991B1B), Color(0xFFFEE2E2))
+        else -> Pair(CarsilColors.TextMuted, Color(0xFFF3F4F6))
     }
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
-        color = Color.White,
-        border = BorderStroke(1.dp, Color(0xFFF0F0F0)),
-        shadowElevation = 2.dp
+        color = CarsilColors.Surface,
+        border = BorderStroke(1.dp, CarsilColors.Stroke),
+        shadowElevation = 1.dp
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -160,7 +171,7 @@ fun ProformaItem(
                     fontSize = 15.sp
                 )
                 Surface(
-                    color = statusColor.copy(alpha = 0.1f), 
+                    color = statusBg,
                     shape = RoundedCornerShape(8.dp)
                 ) {
                     Text(
@@ -168,7 +179,7 @@ fun ProformaItem(
                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp), 
                         fontSize = 9.sp, 
                         fontWeight = FontWeight.ExtraBold, 
-                        color = Color.Black
+                        color = statusColor
                     )
                 }
             }
@@ -182,7 +193,7 @@ fun ProformaItem(
             )
             
             Spacer(Modifier.height(12.dp))
-            HorizontalDivider(color = Color(0xFFF5F5F5))
+            HorizontalDivider(color = CarsilColors.Stroke)
             Spacer(Modifier.height(12.dp))
             
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
