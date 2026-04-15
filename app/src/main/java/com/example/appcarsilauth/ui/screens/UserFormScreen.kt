@@ -22,7 +22,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.DropdownArrow
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
@@ -64,8 +63,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.appcarsilauth.ui.components.CarsilColors
 import com.example.appcarsilauth.ui.viewmodel.IntranetViewModel
-
-private data class RoleOption(val id: Int, val label: String)
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
@@ -501,3 +498,22 @@ private fun formFieldColors() = OutlinedTextFieldDefaults.colors(
     errorBorderColor = CarsilColors.Danger,
     errorContainerColor = CarsilColors.DangerLight
 )
+
+private fun mapIntValue(source: Map<String, Any>?, key: String, fallback: Int = 0): Int {
+    val raw = source?.get(key)
+    return when (raw) {
+        is Int -> raw
+        is Number -> raw.toInt()
+        is String -> raw.toIntOrNull() ?: fallback
+        else -> fallback
+    }
+}
+
+private fun mapTextValue(source: Map<String, Any>?, key: String, fallback: String = ""): String {
+    val raw = source?.get(key)
+    return when (raw) {
+        is String -> raw
+        null -> fallback
+        else -> raw.toString()
+    }
+}

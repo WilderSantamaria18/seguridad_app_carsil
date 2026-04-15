@@ -82,8 +82,6 @@ import androidx.compose.ui.window.DialogProperties
 import com.example.appcarsilauth.ui.components.CarsilColors
 import com.example.appcarsilauth.ui.viewmodel.IntranetViewModel
 
-private data class RoleOption(val id: Int, val label: String)
-
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun UsersScreen(
