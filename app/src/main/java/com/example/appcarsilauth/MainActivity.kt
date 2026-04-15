@@ -112,6 +112,7 @@ class MainActivity : FragmentActivity() {
             var userName by remember { mutableStateOf("") }
             var userRoleId by remember { mutableStateOf(1) }
             var userId by remember { mutableStateOf(1) }
+            var userBeingEdited by remember { mutableStateOf<Map<String, Any>?>(null) }
             val homeScreen = if (userRoleId == 2) "ATTENDANCE" else "DASHBOARD"
 
             var isBiometricEnrolled by remember { mutableStateOf(false) }
@@ -636,7 +637,30 @@ class MainActivity : FragmentActivity() {
                                 )
                                 "CLIENTS" -> ClientsScreen(viewModel = intranetViewModel, onBack = { currentScreen = "DASHBOARD" })
                                 "PRODUCTS" -> ProductsScreen(viewModel = intranetViewModel, onBack = { currentScreen = "DASHBOARD" })
-                                "USERS" -> UsersScreen(viewModel = intranetViewModel, onBack = { currentScreen = "DASHBOARD" })
+                                "USERS" -> UsersScreen(
+                                    viewModel = intranetViewModel,
+                                    onBack = { currentScreen = "DASHBOARD" },
+                                    onNavigateToCreateForm = { currentScreen = "USER_FORM_CREATE" },
+                                    onNavigateToEditForm = { user ->
+                                        userBeingEdited = user
+                                        currentScreen = "USER_FORM_EDIT"
+                                    }
+                                )
+                                "USER_FORM_CREATE" -> UserFormScreen(
+                                    viewModel = intranetViewModel,
+                                    isEditMode = false,
+                                    initialUser = null,
+                                    onBack = { currentScreen = "USERS" }
+                                )
+                                "USER_FORM_EDIT" -> UserFormScreen(
+                                    viewModel = intranetViewModel,
+                                    isEditMode = true,
+                                    initialUser = userBeingEdited,
+                                    onBack = {
+                                        userBeingEdited = null
+                                        currentScreen = "USERS"
+                                    }
+                                )
                                 "PROFORMA" -> ProformaScreen(viewModel = intranetViewModel, idUsuario = userId, onBack = { currentScreen = "DASHBOARD" })
                                 "FACTURAS" -> FacturasScreen(viewModel = intranetViewModel, idUsuario = userId, onBack = { currentScreen = "DASHBOARD" })
                                 "REPORTS" -> ReportsScreen(viewModel = intranetViewModel, onBack = { currentScreen = "DASHBOARD" })

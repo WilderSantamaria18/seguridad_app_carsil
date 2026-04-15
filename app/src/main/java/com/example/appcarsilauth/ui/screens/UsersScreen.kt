@@ -88,7 +88,9 @@ private data class RoleOption(val id: Int, val label: String)
 @Composable
 fun UsersScreen(
     viewModel: IntranetViewModel,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onNavigateToCreateForm: () -> Unit = {},
+    onNavigateToEditForm: (user: Map<String, Any>) -> Unit = {}
 ) {
     val usuarios by viewModel.usuarios.collectAsState()
     val roles by viewModel.roles.collectAsState()
@@ -97,8 +99,6 @@ fun UsersScreen(
 
     var searchQuery by rememberSaveable { mutableStateOf("") }
     var estadoFiltro by rememberSaveable { mutableStateOf("TODOS") }
-    var showCreateDialog by remember { mutableStateOf(false) }
-    var editingUser by remember { mutableStateOf<Map<String, Any>?>(null) }
 
     LaunchedEffect(Unit) {
         viewModel.loadRolesUsuarios()
@@ -229,7 +229,7 @@ fun UsersScreen(
                         )
 
                         OutlinedButton(
-                            onClick = { showCreateDialog = true },
+                            onClick = { onNavigateToCreateForm() },
                             shape = RoundedCornerShape(10.dp),
                             border = BorderStroke(1.dp, CarsilColors.Primary),
                             modifier = Modifier.fillMaxWidth(),
@@ -254,7 +254,7 @@ fun UsersScreen(
                         )
 
                         OutlinedButton(
-                            onClick = { showCreateDialog = true },
+                            onClick = { onNavigateToCreateForm() },
                             shape = RoundedCornerShape(10.dp),
                             border = BorderStroke(1.dp, CarsilColors.Primary),
                             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
@@ -344,7 +344,7 @@ fun UsersScreen(
                     ) { user ->
                         UserCard(
                             user = user,
-                            onEdit = { editingUser = user },
+                            onEdit = { onNavigateToEditForm(user) },
                             onToggleStatus = {
                                 val isActive = mapIntValue(user, "Estado", 1) == 1
                                 viewModel.actualizarEstadoUsuario(
@@ -357,59 +357,6 @@ fun UsersScreen(
                 }
             }
         }
-    }
-
-    if (showCreateDialog) {
-        UserFormDialog(
-            title = "Nuevo Usuario",
-            submitLabel = "Registrar",
-            roles = roles,
-            onDismiss = { showCreateDialog = false },
-            onSubmit = { nombres, apellidos, tipoDocumento, numeroDocumento, correo, telefono, direccion, idRol, estado, clave, confirmarClave ->
-                viewModel.registrarUsuario(
-                    nombres = nombres,
-                    apellidos = apellidos,
-                    tipoDocumento = tipoDocumento,
-                    numeroDocumento = numeroDocumento,
-                    correo = correo,
-                    telefono = telefono,
-                    direccion = direccion,
-                    idRol = idRol,
-                    estado = estado,
-                    clave = clave,
-                    confirmarClave = confirmarClave
-                )
-                showCreateDialog = false
-            }
-        )
-    }
-
-    if (editingUser != null) {
-        UserFormDialog(
-            title = "Editar Usuario",
-            submitLabel = "Guardar cambios",
-            roles = roles,
-            initialUser = editingUser,
-            onDismiss = { editingUser = null },
-            onSubmit = { nombres, apellidos, tipoDocumento, numeroDocumento, correo, telefono, direccion, idRol, estado, clave, confirmarClave ->
-                val userId = mapIntValue(editingUser, "IdUsuario")
-                viewModel.actualizarUsuario(
-                    idUsuario = userId,
-                    nombres = nombres,
-                    apellidos = apellidos,
-                    tipoDocumento = tipoDocumento,
-                    numeroDocumento = numeroDocumento,
-                    correo = correo,
-                    telefono = telefono,
-                    direccion = direccion,
-                    idRol = idRol,
-                    estado = estado,
-                    nuevaClave = clave,
-                    confirmarClave = confirmarClave
-                )
-                editingUser = null
-            }
-        )
     }
 }
 
@@ -523,85 +470,15 @@ private fun UserCard(
     }
 }
 
-@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
-private fun UserFormDialog(
-    title: String,
-    submitLabel: String,
-    roles: List<Map<String, Any>>,
-    initialUser: Map<String, Any>? = null,
-    onDismiss: () -> Unit,
-    onSubmit: (
-        nombres: String,
-        apellidos: String,
-        tipoDocumento: String,
-        numeroDocumento: String,
-        correo: String,
-        telefono: String,
-        direccion: String,
-        idRol: Int,
-        estado: Int,
-        clave: String,
-        confirmarClave: String
-    ) -> Unit
-) {
-    val roleOptions = remember(roles) {
-        roles.mapNotNull { role ->
-            val id = mapIntValue(role, "IdRol", -1)
-            val label = mapTextValue(role, "Descripcion")
-            if (id > 0) RoleOption(id = id, label = label) else null
-        }
-    }
-
-    var nombres by rememberSaveable(initialUser) { mutableStateOf(mapTextValue(initialUser, "Nombres")) }
-    var apellidos by rememberSaveable(initialUser) { mutableStateOf(mapTextValue(initialUser, "Apellidos")) }
-    var tipoDocumento by rememberSaveable(initialUser) { mutableStateOf(mapTextValue(initialUser, "TipoDocumento", "DNI")) }
-    var numeroDocumento by rememberSaveable(initialUser) { mutableStateOf(mapTextValue(initialUser, "NumeroDocumento")) }
-    var correo by rememberSaveable(initialUser) { mutableStateOf(mapTextValue(initialUser, "Correo")) }
-    var telefono by rememberSaveable(initialUser) { mutableStateOf(mapTextValue(initialUser, "Telefono")) }
-    var direccion by rememberSaveable(initialUser) { mutableStateOf(mapTextValue(initialUser, "Direccion")) }
-    var selectedRole by rememberSaveable(initialUser, roleOptions) {
-        mutableIntStateOf(
-            mapIntValue(initialUser, "IdRol", roleOptions.firstOrNull()?.id ?: 1)
-        )
-    }
-    var estado by rememberSaveable(initialUser) { mutableIntStateOf(mapIntValue(initialUser, "Estado", 1)) }
-
-    var clave by rememberSaveable { mutableStateOf("") }
-    var confirmarClave by rememberSaveable { mutableStateOf("") }
-
-    var roleExpanded by remember { mutableStateOf(false) }
-    var showClave by rememberSaveable(initialUser) { mutableStateOf(false) }
-    var showConfirmarClave by rememberSaveable(initialUser) { mutableStateOf(false) }
-
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
-    ) {
-        BoxWithConstraints(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 20.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            val compactDialog = maxWidth < 420.dp
-
-            Surface(
-                shape = RoundedCornerShape(if (compactDialog) 12.dp else 14.dp),
-                color = CarsilColors.Surface,
-                border = BorderStroke(1.dp, CarsilColors.Stroke),
-                modifier = Modifier
-                    .fillMaxWidth(if (compactDialog) 1f else 0.92f)
-                    .widthIn(max = 720.dp)
-                    .heightIn(max = 760.dp)
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = if (compactDialog) 14.dp else 18.dp, vertical = 16.dp)
-                        .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(if (compactDialog) 10.dp else 12.dp)
-                ) {
+private fun formFieldColors() = OutlinedTextFieldDefaults.colors(
+    focusedTextColor = CarsilColors.TextPrimary,
+    unfocusedTextColor = CarsilColors.TextPrimary,
+    focusedContainerColor = CarsilColors.Surface,
+    unfocusedContainerColor = CarsilColors.Surface,
+    focusedBorderColor = CarsilColors.Primary,
+    unfocusedBorderColor = CarsilColors.Stroke
+)
                 Text(
                     text = title,
                     fontWeight = FontWeight.Black,
