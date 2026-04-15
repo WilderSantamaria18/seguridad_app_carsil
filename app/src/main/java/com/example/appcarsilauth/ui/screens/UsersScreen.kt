@@ -82,13 +82,13 @@ import androidx.compose.ui.window.DialogProperties
 import com.example.appcarsilauth.ui.components.CarsilColors
 import com.example.appcarsilauth.ui.viewmodel.IntranetViewModel
 
-private data class RoleOption(val id: Int, val label: String)
-
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun UsersScreen(
     viewModel: IntranetViewModel,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onNavigateToCreateForm: () -> Unit = {},
+    onNavigateToEditForm: (user: Map<String, Any>) -> Unit = {}
 ) {
     val usuarios by viewModel.usuarios.collectAsState()
     val roles by viewModel.roles.collectAsState()
@@ -97,8 +97,6 @@ fun UsersScreen(
 
     var searchQuery by rememberSaveable { mutableStateOf("") }
     var estadoFiltro by rememberSaveable { mutableStateOf("TODOS") }
-    var showCreateDialog by remember { mutableStateOf(false) }
-    var editingUser by remember { mutableStateOf<Map<String, Any>?>(null) }
 
     LaunchedEffect(Unit) {
         viewModel.loadRolesUsuarios()
@@ -229,7 +227,7 @@ fun UsersScreen(
                         )
 
                         OutlinedButton(
-                            onClick = { showCreateDialog = true },
+                            onClick = { onNavigateToCreateForm() },
                             shape = RoundedCornerShape(10.dp),
                             border = BorderStroke(1.dp, CarsilColors.Primary),
                             modifier = Modifier.fillMaxWidth(),
@@ -254,7 +252,7 @@ fun UsersScreen(
                         )
 
                         OutlinedButton(
-                            onClick = { showCreateDialog = true },
+                            onClick = { onNavigateToCreateForm() },
                             shape = RoundedCornerShape(10.dp),
                             border = BorderStroke(1.dp, CarsilColors.Primary),
                             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
@@ -344,7 +342,7 @@ fun UsersScreen(
                     ) { user ->
                         UserCard(
                             user = user,
-                            onEdit = { editingUser = user },
+                            onEdit = { onNavigateToEditForm(user) },
                             onToggleStatus = {
                                 val isActive = mapIntValue(user, "Estado", 1) == 1
                                 viewModel.actualizarEstadoUsuario(
@@ -357,59 +355,6 @@ fun UsersScreen(
                 }
             }
         }
-    }
-
-    if (showCreateDialog) {
-        UserFormDialog(
-            title = "Nuevo Usuario",
-            submitLabel = "Registrar",
-            roles = roles,
-            onDismiss = { showCreateDialog = false },
-            onSubmit = { nombres, apellidos, tipoDocumento, numeroDocumento, correo, telefono, direccion, idRol, estado, clave, confirmarClave ->
-                viewModel.registrarUsuario(
-                    nombres = nombres,
-                    apellidos = apellidos,
-                    tipoDocumento = tipoDocumento,
-                    numeroDocumento = numeroDocumento,
-                    correo = correo,
-                    telefono = telefono,
-                    direccion = direccion,
-                    idRol = idRol,
-                    estado = estado,
-                    clave = clave,
-                    confirmarClave = confirmarClave
-                )
-                showCreateDialog = false
-            }
-        )
-    }
-
-    if (editingUser != null) {
-        UserFormDialog(
-            title = "Editar Usuario",
-            submitLabel = "Guardar cambios",
-            roles = roles,
-            initialUser = editingUser,
-            onDismiss = { editingUser = null },
-            onSubmit = { nombres, apellidos, tipoDocumento, numeroDocumento, correo, telefono, direccion, idRol, estado, clave, confirmarClave ->
-                val userId = mapIntValue(editingUser, "IdUsuario")
-                viewModel.actualizarUsuario(
-                    idUsuario = userId,
-                    nombres = nombres,
-                    apellidos = apellidos,
-                    tipoDocumento = tipoDocumento,
-                    numeroDocumento = numeroDocumento,
-                    correo = correo,
-                    telefono = telefono,
-                    direccion = direccion,
-                    idRol = idRol,
-                    estado = estado,
-                    nuevaClave = clave,
-                    confirmarClave = confirmarClave
-                )
-                editingUser = null
-            }
-        )
     }
 }
 
@@ -521,432 +466,6 @@ private fun UserCard(
             }
         }
     }
-}
-
-@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
-@Composable
-private fun UserFormDialog(
-    title: String,
-    submitLabel: String,
-    roles: List<Map<String, Any>>,
-    initialUser: Map<String, Any>? = null,
-    onDismiss: () -> Unit,
-    onSubmit: (
-        nombres: String,
-        apellidos: String,
-        tipoDocumento: String,
-        numeroDocumento: String,
-        correo: String,
-        telefono: String,
-        direccion: String,
-        idRol: Int,
-        estado: Int,
-        clave: String,
-        confirmarClave: String
-    ) -> Unit
-) {
-    val roleOptions = remember(roles) {
-        roles.mapNotNull { role ->
-            val id = mapIntValue(role, "IdRol", -1)
-            val label = mapTextValue(role, "Descripcion")
-            if (id > 0) RoleOption(id = id, label = label) else null
-        }
-    }
-
-    var nombres by rememberSaveable(initialUser) { mutableStateOf(mapTextValue(initialUser, "Nombres")) }
-    var apellidos by rememberSaveable(initialUser) { mutableStateOf(mapTextValue(initialUser, "Apellidos")) }
-    var tipoDocumento by rememberSaveable(initialUser) { mutableStateOf(mapTextValue(initialUser, "TipoDocumento", "DNI")) }
-    var numeroDocumento by rememberSaveable(initialUser) { mutableStateOf(mapTextValue(initialUser, "NumeroDocumento")) }
-    var correo by rememberSaveable(initialUser) { mutableStateOf(mapTextValue(initialUser, "Correo")) }
-    var telefono by rememberSaveable(initialUser) { mutableStateOf(mapTextValue(initialUser, "Telefono")) }
-    var direccion by rememberSaveable(initialUser) { mutableStateOf(mapTextValue(initialUser, "Direccion")) }
-    var selectedRole by rememberSaveable(initialUser, roleOptions) {
-        mutableIntStateOf(
-            mapIntValue(initialUser, "IdRol", roleOptions.firstOrNull()?.id ?: 1)
-        )
-    }
-    var estado by rememberSaveable(initialUser) { mutableIntStateOf(mapIntValue(initialUser, "Estado", 1)) }
-
-    var clave by rememberSaveable { mutableStateOf("") }
-    var confirmarClave by rememberSaveable { mutableStateOf("") }
-
-    var roleExpanded by remember { mutableStateOf(false) }
-    var showClave by rememberSaveable(initialUser) { mutableStateOf(false) }
-    var showConfirmarClave by rememberSaveable(initialUser) { mutableStateOf(false) }
-
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
-    ) {
-        BoxWithConstraints(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 20.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            val compactDialog = maxWidth < 420.dp
-
-            Surface(
-                shape = RoundedCornerShape(if (compactDialog) 12.dp else 14.dp),
-                color = CarsilColors.Surface,
-                border = BorderStroke(1.dp, CarsilColors.Stroke),
-                modifier = Modifier
-                    .fillMaxWidth(if (compactDialog) 1f else 0.92f)
-                    .widthIn(max = 720.dp)
-                    .heightIn(max = 760.dp)
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = if (compactDialog) 14.dp else 18.dp, vertical = 16.dp)
-                        .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(if (compactDialog) 10.dp else 12.dp)
-                ) {
-                Text(
-                    text = title,
-                    fontWeight = FontWeight.Black,
-                    fontSize = 18.sp,
-                    color = CarsilColors.TextPrimary
-                )
-
-                OutlinedTextField(
-                    value = nombres,
-                    onValueChange = { nombres = it },
-                    label = { Text("Nombres") },
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = formFieldColors()
-                )
-                OutlinedTextField(
-                    value = apellidos,
-                    onValueChange = { apellidos = it },
-                    label = { Text("Apellidos") },
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = formFieldColors()
-                )
-
-                if (compactDialog) {
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        OutlinedTextField(
-                            value = tipoDocumento,
-                            onValueChange = { tipoDocumento = it },
-                            label = { Text("Tipo Doc.") },
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = formFieldColors()
-                        )
-                        OutlinedTextField(
-                            value = numeroDocumento,
-                            onValueChange = { numeroDocumento = it },
-                            label = { Text("Número") },
-                            modifier = Modifier.fillMaxWidth(),
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            colors = formFieldColors()
-                        )
-                    }
-                } else {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedTextField(
-                            value = tipoDocumento,
-                            onValueChange = { tipoDocumento = it },
-                            label = { Text("Tipo Doc.") },
-                            modifier = Modifier.weight(1f),
-                            colors = formFieldColors()
-                        )
-                        OutlinedTextField(
-                            value = numeroDocumento,
-                            onValueChange = { numeroDocumento = it },
-                            label = { Text("Número") },
-                            modifier = Modifier.weight(1f),
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            colors = formFieldColors()
-                        )
-                    }
-                }
-
-                OutlinedTextField(
-                    value = correo,
-                    onValueChange = { correo = it },
-                    label = { Text("Correo") },
-                    modifier = Modifier.fillMaxWidth(),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                    colors = formFieldColors()
-                )
-
-                if (compactDialog) {
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        OutlinedTextField(
-                            value = telefono,
-                            onValueChange = { telefono = it },
-                            label = { Text("Teléfono") },
-                            modifier = Modifier.fillMaxWidth(),
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
-                            colors = formFieldColors()
-                        )
-                        OutlinedTextField(
-                            value = direccion,
-                            onValueChange = { direccion = it },
-                            label = { Text("Dirección") },
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = formFieldColors()
-                        )
-                    }
-                } else {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedTextField(
-                            value = telefono,
-                            onValueChange = { telefono = it },
-                            label = { Text("Teléfono") },
-                            modifier = Modifier.weight(1f),
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
-                            colors = formFieldColors()
-                        )
-                        OutlinedTextField(
-                            value = direccion,
-                            onValueChange = { direccion = it },
-                            label = { Text("Dirección") },
-                            modifier = Modifier.weight(1f),
-                            colors = formFieldColors()
-                        )
-                    }
-                }
-
-                if (roleOptions.isNotEmpty()) {
-                    ExposedDropdownMenuBox(
-                        expanded = roleExpanded,
-                        onExpandedChange = { roleExpanded = !roleExpanded }
-                    ) {
-                        val selectedRoleName = roleOptions.firstOrNull { it.id == selectedRole }?.label ?: "Seleccionar rol"
-                        OutlinedTextField(
-                            value = selectedRoleName,
-                            onValueChange = {},
-                            readOnly = true,
-                            label = { Text("Rol") },
-                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = roleExpanded) },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .menuAnchor(),
-                            colors = formFieldColors()
-                        )
-                        ExposedDropdownMenu(
-                            expanded = roleExpanded,
-                            onDismissRequest = { roleExpanded = false }
-                        ) {
-                            roleOptions.forEach { role ->
-                                DropdownMenuItem(
-                                    text = { Text(role.label) },
-                                    onClick = {
-                                        selectedRole = role.id
-                                        roleExpanded = false
-                                    }
-                                )
-                            }
-                        }
-                    }
-                } else {
-                    Surface(
-                        modifier = Modifier.fillMaxWidth(),
-                        color = CarsilColors.DangerLight,
-                        shape = RoundedCornerShape(10.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(10.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(14.dp),
-                                color = CarsilColors.Danger,
-                                strokeWidth = 2.dp
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("No se pudieron cargar los roles.", color = CarsilColors.TextPrimary)
-                        }
-                    }
-                }
-
-                Text(
-                    text = "Estado",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = CarsilColors.TextMuted
-                )
-                Row(
-                    modifier = Modifier.horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    FilterChip(
-                        selected = estado == 1,
-                        onClick = { estado = 1 },
-                        label = { Text("Activo") },
-                        border = BorderStroke(1.dp, if (estado == 1) CarsilColors.Primary else CarsilColors.Stroke),
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = CarsilColors.PrimaryLight,
-                            selectedLabelColor = CarsilColors.Primary,
-                            containerColor = CarsilColors.Surface,
-                            labelColor = CarsilColors.TextSecondary
-                        ),
-                        leadingIcon = {
-                            if (estado == 1) {
-                                Icon(Icons.Default.Check, null, modifier = Modifier.size(16.dp))
-                            }
-                        }
-                    )
-                    FilterChip(
-                        selected = estado == 0,
-                        onClick = { estado = 0 },
-                        label = { Text("Inactivo") },
-                        border = BorderStroke(1.dp, if (estado == 0) CarsilColors.Primary else CarsilColors.Stroke),
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = CarsilColors.PrimaryLight,
-                            selectedLabelColor = CarsilColors.Primary,
-                            containerColor = CarsilColors.Surface,
-                            labelColor = CarsilColors.TextSecondary
-                        ),
-                        leadingIcon = {
-                            if (estado == 0) {
-                                Icon(Icons.Default.Check, null, modifier = Modifier.size(16.dp))
-                            }
-                        }
-                    )
-                }
-
-                HorizontalDivider(color = CarsilColors.Stroke)
-
-                Text(
-                    text = if (initialUser == null) "Credenciales" else "Actualizar contraseña (opcional)",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = CarsilColors.TextMuted
-                )
-
-                OutlinedTextField(
-                    value = clave,
-                    onValueChange = { clave = it },
-                    label = { Text("Contraseña") },
-                    modifier = Modifier.fillMaxWidth(),
-                    visualTransformation = if (showClave) androidx.compose.ui.text.input.VisualTransformation.None else PasswordVisualTransformation(),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                    trailingIcon = {
-                        IconButton(onClick = { showClave = !showClave }) {
-                            Icon(
-                                imageVector = if (showClave) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                                contentDescription = if (showClave) "Ocultar contraseña" else "Mostrar contraseña",
-                                tint = CarsilColors.TextSecondary
-                            )
-                        }
-                    },
-                    colors = formFieldColors()
-                )
-                OutlinedTextField(
-                    value = confirmarClave,
-                    onValueChange = { confirmarClave = it },
-                    label = { Text("Confirmar contraseña") },
-                    modifier = Modifier.fillMaxWidth(),
-                    visualTransformation = if (showConfirmarClave) androidx.compose.ui.text.input.VisualTransformation.None else PasswordVisualTransformation(),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                    trailingIcon = {
-                        IconButton(onClick = { showConfirmarClave = !showConfirmarClave }) {
-                            Icon(
-                                imageVector = if (showConfirmarClave) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                                contentDescription = if (showConfirmarClave) "Ocultar contraseña" else "Mostrar contraseña",
-                                tint = CarsilColors.TextSecondary
-                            )
-                        }
-                    },
-                    colors = formFieldColors()
-                )
-
-                if (compactDialog) {
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Button(
-                            onClick = {
-                                if (roleOptions.isNotEmpty()) {
-                                    onSubmit(
-                                        nombres,
-                                        apellidos,
-                                        tipoDocumento,
-                                        numeroDocumento,
-                                        correo,
-                                        telefono,
-                                        direccion,
-                                        selectedRole,
-                                        estado,
-                                        clave,
-                                        confirmarClave
-                                    )
-                                }
-                            },
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(8.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = CarsilColors.Primary,
-                                contentColor = Color.White
-                            ),
-                            contentPadding = PaddingValues(vertical = 11.dp)
-                        ) {
-                            Text(submitLabel)
-                        }
-
-                        OutlinedButton(
-                            onClick = onDismiss,
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(8.dp),
-                            border = BorderStroke(1.dp, CarsilColors.Stroke),
-                            contentPadding = PaddingValues(vertical = 11.dp)
-                        ) {
-                            Text("Cancelar", color = CarsilColors.TextPrimary)
-                        }
-                    }
-                } else {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        OutlinedButton(
-                            onClick = onDismiss,
-                            modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(8.dp),
-                            border = BorderStroke(1.dp, CarsilColors.Stroke),
-                            contentPadding = PaddingValues(vertical = 11.dp)
-                        ) {
-                            Text("Cancelar", color = CarsilColors.TextPrimary)
-                        }
-                        Button(
-                            onClick = {
-                                if (roleOptions.isNotEmpty()) {
-                                    onSubmit(
-                                        nombres,
-                                        apellidos,
-                                        tipoDocumento,
-                                        numeroDocumento,
-                                        correo,
-                                        telefono,
-                                        direccion,
-                                        selectedRole,
-                                        estado,
-                                        clave,
-                                        confirmarClave
-                                    )
-                                }
-                            },
-                            modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(8.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = CarsilColors.Primary,
-                                contentColor = Color.White
-                            ),
-                            contentPadding = PaddingValues(vertical = 11.dp)
-                        ) {
-                            Text(submitLabel)
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
 }
 
 @Composable
