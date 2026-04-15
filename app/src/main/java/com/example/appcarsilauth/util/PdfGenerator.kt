@@ -75,8 +75,15 @@ object PdfGenerator {
         try {
             val logo = BitmapFactory.decodeResource(context.resources, R.drawable.logo_carsil_app)
             if (logo != null) {
-                val scaledLogo = Bitmap.createScaledBitmap(logo, 90, 100, true)
-                canvas.drawBitmap(scaledLogo, 40f, 30f, paint)
+                drawCenteredLogoContained(
+                    canvas = canvas,
+                    logo = logo,
+                    boxLeft = 40f,
+                    boxTop = 28f,
+                    boxWidth = 280f,
+                    boxHeight = 86f,
+                    paint = paint
+                )
             }
         } catch (e: Exception) {
             textPaint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
@@ -368,8 +375,15 @@ object PdfGenerator {
         try {
             val logo = BitmapFactory.decodeResource(context.resources, R.drawable.logo_carsil_app)
             if (logo != null) {
-                val scaledLogo = Bitmap.createScaledBitmap(logo, 240, 72, true)
-                canvas.drawBitmap(scaledLogo, pageLeft, 34f, paint)
+                drawCenteredLogoContained(
+                    canvas = canvas,
+                    logo = logo,
+                    boxLeft = pageLeft,
+                    boxTop = 34f,
+                    boxWidth = 240f,
+                    boxHeight = 72f,
+                    paint = paint
+                )
             }
         } catch (e: Exception) {
             textPaint.color = headerColor
@@ -726,6 +740,29 @@ object PdfGenerator {
             pdfDocument.close()
         }
         return finalUri
+    }
+
+    private fun drawCenteredLogoContained(
+        canvas: Canvas,
+        logo: Bitmap,
+        boxLeft: Float,
+        boxTop: Float,
+        boxWidth: Float,
+        boxHeight: Float,
+        paint: Paint
+    ) {
+        val sourceWidth = logo.width.toFloat()
+        val sourceHeight = logo.height.toFloat()
+        if (sourceWidth <= 0f || sourceHeight <= 0f || boxWidth <= 0f || boxHeight <= 0f) return
+
+        val scale = minOf(boxWidth / sourceWidth, boxHeight / sourceHeight)
+        val drawWidth = sourceWidth * scale
+        val drawHeight = sourceHeight * scale
+        val drawLeft = boxLeft + (boxWidth - drawWidth) / 2f
+        val drawTop = boxTop + (boxHeight - drawHeight) / 2f
+
+        val destination = RectF(drawLeft, drawTop, drawLeft + drawWidth, drawTop + drawHeight)
+        canvas.drawBitmap(logo, null, destination, paint)
     }
 
     /**
